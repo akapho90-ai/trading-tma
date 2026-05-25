@@ -18,7 +18,7 @@ const FOREX_LIST = [
   { pair: "EUR/USD", symbol: "EUR/USD", dec: 4, signal: "BUY",  kekuatan: 74, slPct: -0.25, tpPct:  0.625 }, // RR 1:2.5
   { pair: "GBP/USD", symbol: "GBP/USD", dec: 4, signal: "BUY",  kekuatan: 68, slPct: -0.30, tpPct:  0.750 }, // RR 1:2.5
   { pair: "USD/JPY", symbol: "USD/JPY", dec: 2, signal: "SELL", kekuatan: 72, slPct:  0.25, tpPct: -0.625 }, // RR 1:2.5
-  { pair: "XAU/USD", symbol: "XAU/USD", dec: 1, signal: "BUY",  kekuatan: 85, slPct: -0.50, tpPct:  1.500 }, // RR 1:3.0
+  { pair: "XAU/USD", symbol: "XAU/USD", dec: 2, signal: "BUY",  kekuatan: 85, slPct: -0.50, tpPct:  1.500 }, // RR 1:3.0
   { pair: "USD/IDR", symbol: "USD/IDR", dec: 0, signal: "SELL", kekuatan: 60, slPct:  0.40, tpPct: -1.000 }, // RR 1:2.5
   { pair: "AUD/USD", symbol: "AUD/USD", dec: 4, signal: "HOLD", kekuatan: 50, slPct: -0.20, tpPct:  0.500 }, // RR 1:2.5
   { pair: "USD/CAD", symbol: "USD/CAD", dec: 4, signal: "SELL", kekuatan: 62, slPct:  0.22, tpPct: -0.550 }, // RR 1:2.5
@@ -144,7 +144,23 @@ const TIMEFRAMES = ["5min","15min","30min","1h","4h","1day"];
 const TF_LABEL   = { "5min":"5M","15min":"15M","30min":"30M","1h":"1H","4h":"4H","1day":"1D" };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmt    = (n, d=0) => Number(n).toLocaleString("id-ID",{minimumFractionDigits:d,maximumFractionDigits:d});
+
+const getDecimalBySymbol = (symbol = "") => {
+  if (symbol.includes("JPY")) return 2;
+  if (symbol.includes("XAU")) return 2;
+  if (symbol.includes("BTC")) return 0;
+  if (symbol.includes("IDR")) return 0;
+  return 4;
+};
+
+const fmt = (n, d = 0, symbol = "") => {
+  const decimal = d ?? getDecimalBySymbol(symbol);
+  return Number(n).toLocaleString("id-ID", {
+    minimumFractionDigits: decimal,
+    maximumFractionDigits: decimal
+  });
+};
+
 const fmtRp  = (n) => {
   if (!isFinite(n)||isNaN(n)) return "Rp –";
   if (n>=1e12) return `Rp ${(n/1e12).toFixed(2)}T`;
@@ -221,7 +237,9 @@ function generateSimCandles(basePrice, symbol, tf, count=60) {
     const timeStr = tf === "1day"
       ? t.toISOString().slice(0,10)
       : t.toISOString().slice(0,16).replace("T"," ");
-    const drift = (Math.random() - 0.48) * vol;
+    const trendBias = Math.sin(i / 8) * 0.15;
+    const noise = (Math.random() - 0.5) * vol;
+    const drift = noise + (trendBias * vol);
     const open  = price;
     const close = Math.max(open * (1 + drift), 0.0001);
     const bodySize = Math.abs(close - open);
@@ -462,7 +480,7 @@ function usePrice(symbol, fallback) {
   useEffect(()=>{
     const vol=symbol.includes("BTC")?0.0008:symbol.includes("XAU")?0.0002:symbol.includes("IDR")?0.00005:0.00008;
     const id=setInterval(()=>{
-      const d=(Math.random()-0.495)*vol; // very slight drift, mostly noise
+      const d=(Math.random()-0.4992)*vol; // very slight drift, mostly noise
       const next=Math.max(priceRef.current*(1+d),0.0001);
       priceRef.current=next;
       setPrice(next);
@@ -829,7 +847,7 @@ function ForexRow({item, onClick}) {
   useEffect(()=>{
     const id=setInterval(()=>{
       const last=sparkData.current[sparkData.current.length-1].v;
-      const next=last*(1+(Math.random()-0.48)*0.0003);
+      const next=last*(1+(Math.random()-0.495)*0.00015);
       sparkData.current=[...sparkData.current.slice(-19),{v:next}];
     },3000);
     return ()=>clearInterval(id);
@@ -1027,7 +1045,7 @@ function SahamRow({item, onClick}) {
   useEffect(()=>{
     const id=setInterval(()=>{
       const last=sparkData.current[sparkData.current.length-1].v;
-      const next=last*(1+(Math.random()-0.48)*0.0008);
+      const next=last*(1+(Math.random()-0.495)*0.00035);
       sparkData.current=[...sparkData.current.slice(-19),{v:next}];
     },3000);
     return ()=>clearInterval(id);
@@ -1250,7 +1268,8 @@ function SahamTab({ onSahamClick }) {
   const sellSaham = allSaham.filter(s=>s.signal==="SELL").length;
   const syariahCount = allSaham.filter(s=>s.syariah).length;
 
-  let filtered = allSaham;
+  // optimized filtering
+  let filtered = [...allSaham];
 
   // Filter kategori
   if (katFilter === "Syariah") filtered = filtered.filter(s => s.syariah);
@@ -1396,7 +1415,7 @@ export default function App() {
         <div style={{display:"flex",gap:16,marginTop:12,overflowX:"auto",paddingBottom:2}}>
           <TickerItem label="EUR"  symbol="EUR/USD" dec={4}/>
           <TickerItem label="GBP"  symbol="GBP/USD" dec={4}/>
-          <TickerItem label="XAU"  symbol="XAU/USD" dec={1}/>
+          <TickerItem label="XAU"  symbol="XAU/USD" dec={2}/>
           <TickerItem label="JPY"  symbol="USD/JPY" dec={2}/>
           <TickerItem label="BTC"  symbol="BTC/USD" dec={0}/>
           <TickerItem label="IDR"  symbol="USD/IDR" dec={0}/>
