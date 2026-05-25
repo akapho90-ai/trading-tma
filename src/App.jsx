@@ -145,6 +145,7 @@ const TF_LABEL   = { "5min":"5M","15min":"15M","30min":"30M","1h":"1H","4h":"4H"
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
+
 const getDecimalBySymbol = (symbol = "") => {
   if (symbol.includes("JPY")) return 2;
   if (symbol.includes("XAU")) return 2;
@@ -153,13 +154,28 @@ const getDecimalBySymbol = (symbol = "") => {
   return 4;
 };
 
-const fmt = (n, d = 0, symbol = "") => {
+const fmt = (n, d = null, symbol = "") => {
   const decimal = d ?? getDecimalBySymbol(symbol);
+
+  // forex & crypto use international format
+  if (
+    symbol.includes("/") ||
+    symbol.includes("BTC") ||
+    symbol.includes("XAU")
+  ) {
+    return Number(n).toLocaleString("en-US", {
+      minimumFractionDigits: decimal,
+      maximumFractionDigits: decimal
+    });
+  }
+
+  // saham indonesia
   return Number(n).toLocaleString("id-ID", {
     minimumFractionDigits: decimal,
     maximumFractionDigits: decimal
   });
 };
+
 
 const fmtRp  = (n) => {
   if (!isFinite(n)||isNaN(n)) return "Rp –";
@@ -564,9 +580,9 @@ const StrengthBar=({value,color})=>{
 };
 
 const Spark=({data,color})=>(
-  <ResponsiveContainer width={60} height={24}>
-    <LineChart data={data} margin={{top:2,bottom:2,left:0,right:0}}>
-      <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false}/>
+  <ResponsiveContainer width={90} height={28}>
+    <LineChart data={data} margin={{top:1,bottom:1,left:1,right:1}}>
+      <Line type="monotone" dataKey="v" stroke={color} strokeWidth={2.2} dot={false} isAnimationActive={false}/>
     </LineChart>
   </ResponsiveContainer>
 );
@@ -708,7 +724,7 @@ function ForexDetail({item, onClose}) {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:16,fontWeight:700,color:up?"#10b981":"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(price, item.dec)}</div>
+            <div style={{fontSize:16,fontWeight:700,color:up?"#10b981":"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(price, item.dec, item.symbol)}</div>
             <div style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(4)}%</div>
           </div>
           <button onClick={onClose} style={{background:"#334155",border:"none",color:"white",borderRadius:8,padding:"8px 12px",fontSize:13,cursor:"pointer",fontWeight:600}}>✕</button>
@@ -724,12 +740,12 @@ function ForexDetail({item, onClose}) {
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
             <div style={{fontSize:9,color:"#10b981",marginBottom:3}}>TP (Live)</div>
-            <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.tp, item.dec)}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.tp, item.dec, item.symbol)}</div>
             <div style={{fontSize:9,color:"#6ee7b7"}}>+{Math.abs(item.tpPct)}%</div>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
             <div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>SL (Live)</div>
-            <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.sl, item.dec)}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.sl, item.dec, item.symbol)}</div>
             <div style={{fontSize:9,color:"#fca5a5"}}>{item.slPct}%</div>
           </div>
         </div>
@@ -768,8 +784,8 @@ function ForexDetail({item, onClose}) {
                 {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
                 {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
                 {/* TP & SL lines dinamis sesuai timeframe */}
-                <ReferenceLine y={dynPos.tp} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:`TP`,fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
-                <ReferenceLine y={dynPos.sl} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:`SL`,fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
+                <ReferenceLine y={dynPos.tp} stroke="#10b981" strokeDasharray="5 3" strokeWidth={2.2} label={{value:`TP`,fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
+                <ReferenceLine y={dynPos.sl} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={2.2} label={{value:`SL`,fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
                 <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false}/>
               </LineChart>
             </ResponsiveContainer>
@@ -866,11 +882,11 @@ function ForexRow({item, onClick}) {
           {loading&&<span style={{fontSize:9,color:"#64748b"}}>⏳</span>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:14,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"white"}}>{fmt(price,item.dec)}</span>
+          <span style={{fontSize:14,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"white"}}>{fmt(price,item.dec,item.symbol)}</span>
           <span style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(4)}%</span>
         </div>
         <div style={{marginTop:4,fontSize:10,color:"#64748b"}}>
-          TP <span style={{color:"#10b981"}}>{fmt(tp,item.dec)}</span> · SL <span style={{color:"#ef4444"}}>{fmt(sl,item.dec)}</span> · <span style={{color:"#60a5fa"}}>Tap detail →</span>
+          TP <span style={{color:"#10b981"}}>{fmt(tp,item.dec,item.symbol)}</span> · SL <span style={{color:"#ef4444"}}>{fmt(sl,item.dec,item.symbol)}</span> · <span style={{color:"#60a5fa"}}>Tap detail →</span>
         </div>
       </div>
       <Spark data={sparkData.current} color={up?"#10b981":"#ef4444"}/>
@@ -970,8 +986,8 @@ function SahamDetail({item, onClose}) {
                 {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
                 {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
                 {/* TP & SL sesuai timeframe */}
-                <ReferenceLine y={tpPrice} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"TP",fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
-                <ReferenceLine y={slPrice} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"SL",fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
+                <ReferenceLine y={tpPrice} stroke="#10b981" strokeDasharray="5 3" strokeWidth={2.2} label={{value:"TP",fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
+                <ReferenceLine y={slPrice} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={2.2} label={{value:"SL",fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
                 <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false}/>
               </LineChart>
             </ResponsiveContainer>
