@@ -255,7 +255,7 @@ const Badge=({signal})=>(
   </span>
 );
 
-const Bar=({value,color})=>{
+const StrengthBar=({value,color})=>{
   const s=Math.max(0,Math.min(100,value));
   return(
     <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -443,7 +443,7 @@ function ForexDetail({item, onClose}) {
             <div style={{fontSize:10,color:rsiColor,marginTop:2}}>{rsiLabel}</div>
             {rsi!==null&&(
               <div style={{marginTop:6}}>
-                <Bar value={rsi} color={rsiColor}/>
+                <StrengthBar value={rsi} color={rsiColor}/>
               </div>
             )}
           </div>
@@ -476,7 +476,7 @@ function ForexDetail({item, onClose}) {
         {/* Kekuatan sinyal */}
         <div style={{background:"#1e293b",borderRadius:10,padding:"12px",border:"1px solid #334155"}}>
           <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:8}}>💪 Kekuatan Sinyal</div>
-          <Bar value={item.kekuatan} color={sigColor(item.signal)}/>
+          <StrengthBar value={item.kekuatan} color={sigColor(item.signal)}/>
           <div style={{fontSize:10,color:"#64748b",marginTop:6}}>
             ⚠️ Edukatif saja. Bukan rekomendasi trading resmi.
           </div>
@@ -562,7 +562,7 @@ function SahamDetail({item, onClose}) {
 
         <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
           <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:8}}>💪 Kekuatan Sinyal</div>
-          <Bar value={item.kekuatan} color={sigColor(item.signal)}/>
+          <StrengthBar value={item.kekuatan} color={sigColor(item.signal)}/>
         </div>
 
         <div style={{background:"#172033",borderRadius:10,padding:"12px",border:"1px solid #1e3a5f",fontSize:11,color:"#64748b",lineHeight:1.7}}>
@@ -592,7 +592,7 @@ function SahamRow({item, onClick}) {
             <span style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(2)}%</span>
           </div>
           <div style={{marginTop:4}}>
-            <Bar value={item.kekuatan} color={sigColor(item.signal)}/>
+            <StrengthBar value={item.kekuatan} color={sigColor(item.signal)}/>
           </div>
           <div style={{fontSize:10,color:"#64748b",marginTop:3}}>{item.indikator.split(",")[0]} · <span style={{color:"#60a5fa"}}>Tap detail →</span></div>
         </div>
