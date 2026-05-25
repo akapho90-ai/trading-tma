@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
+  Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, ReferenceLine, LineChart
 } from "recharts";
 
@@ -13,15 +13,16 @@ const AV_BASE = "https://www.alphavantage.co/query";
 // ─── FOREX META ───────────────────────────────────────────────────────────────
 // TP & SL dihitung dinamis dari harga live (persen dari entry)
 // Tidak lagi hardcode agar selalu sesuai harga pasar
+// slPct = risiko (selalu kecil & tight), tpPct = reward (min 2x slPct → RR ≥ 1:2)
 const FOREX_LIST = [
-  { pair: "EUR/USD", symbol: "EUR/USD", dec: 4, signal: "BUY",  kekuatan: 74, tpPct: 0.55, slPct: -0.45 },
-  { pair: "GBP/USD", symbol: "GBP/USD", dec: 4, signal: "BUY",  kekuatan: 68, tpPct: 0.60, slPct: -0.50 },
-  { pair: "USD/JPY", symbol: "USD/JPY", dec: 2, signal: "SELL", kekuatan: 72, tpPct: -0.50, slPct: 0.40 },
-  { pair: "XAU/USD", symbol: "XAU/USD", dec: 1, signal: "BUY",  kekuatan: 85, tpPct: 1.20, slPct: -0.90 },
-  { pair: "USD/IDR", symbol: "USD/IDR", dec: 0, signal: "SELL", kekuatan: 60, tpPct: -1.00, slPct: 0.80 },
-  { pair: "AUD/USD", symbol: "AUD/USD", dec: 4, signal: "HOLD", kekuatan: 50, tpPct: 0.45, slPct: -0.38 },
-  { pair: "USD/CAD", symbol: "USD/CAD", dec: 4, signal: "SELL", kekuatan: 62, tpPct: -0.55, slPct: 0.42 },
-  { pair: "BTC/USD", symbol: "BTC/USD", dec: 0, signal: "BUY",  kekuatan: 78, tpPct: 5.00, slPct: -3.50 },
+  { pair: "EUR/USD", symbol: "EUR/USD", dec: 4, signal: "BUY",  kekuatan: 74, slPct: -0.25, tpPct:  0.625 }, // RR 1:2.5
+  { pair: "GBP/USD", symbol: "GBP/USD", dec: 4, signal: "BUY",  kekuatan: 68, slPct: -0.30, tpPct:  0.750 }, // RR 1:2.5
+  { pair: "USD/JPY", symbol: "USD/JPY", dec: 2, signal: "SELL", kekuatan: 72, slPct:  0.25, tpPct: -0.625 }, // RR 1:2.5
+  { pair: "XAU/USD", symbol: "XAU/USD", dec: 1, signal: "BUY",  kekuatan: 85, slPct: -0.50, tpPct:  1.500 }, // RR 1:3.0
+  { pair: "USD/IDR", symbol: "USD/IDR", dec: 0, signal: "SELL", kekuatan: 60, slPct:  0.40, tpPct: -1.000 }, // RR 1:2.5
+  { pair: "AUD/USD", symbol: "AUD/USD", dec: 4, signal: "HOLD", kekuatan: 50, slPct: -0.20, tpPct:  0.500 }, // RR 1:2.5
+  { pair: "USD/CAD", symbol: "USD/CAD", dec: 4, signal: "SELL", kekuatan: 62, slPct:  0.22, tpPct: -0.550 }, // RR 1:2.5
+  { pair: "BTC/USD", symbol: "BTC/USD", dec: 0, signal: "BUY",  kekuatan: 78, slPct: -1.50, tpPct:  4.500 }, // RR 1:3.0
 ];
 
 // ─── SAHAM SYARIAH (IDX ISSI / JII) ──────────────────────────────────────────
@@ -246,8 +247,61 @@ async function fetchTDPrice(symbol) {
     const url = `${TD_BASE}/price?symbol=${encodeURIComponent(symbol)}&apikey=${TD_KEY}`;
     const res  = await fetch(url);
     const data = await res.json();
-    if (data.price) return parseFloat(data.price);
-  } catch(_) {}
+    if (data.price) return { price: parseFloat(data.price), src: "twelvedata" };
+    // Rate limit or plan error — log for debug
+    if (data.code || data.status === "error") console.warn("TwelveData error:", data.message || data.code);
+  } catch(e) { console.warn("TwelveData fetch failed:", e.message); }
+  return null;
+}
+
+// ─── API: FALLBACK — Frankfurter (forex) + Metals-API shim ───────────────────
+// For forex pairs, use open.er-api.com (no key, generous limits)
+// For XAU/USD, use Frankfurter ECB rates (gold in EUR then convert) or direct metals API
+async function fetchFallbackPrice(symbol) {
+  try {
+    // Forex pairs via exchangerate-api (free, no key)
+    const FOREX_MAP = {
+      "EUR/USD": { base:"EUR", quote:"USD" },
+      "GBP/USD": { base:"GBP", quote:"USD" },
+      "USD/JPY": { base:"USD", quote:"JPY" },
+      "AUD/USD": { base:"AUD", quote:"USD" },
+      "USD/CAD": { base:"USD", quote:"CAD" },
+      "USD/IDR": { base:"USD", quote:"IDR" },
+    };
+    if (FOREX_MAP[symbol]) {
+      const { base, quote } = FOREX_MAP[symbol];
+      const res  = await fetch(`https://open.er-api.com/v6/latest/${base}`);
+      const data = await res.json();
+      if (data.rates && data.rates[quote]) {
+        return { price: data.rates[quote], src: "er-api" };
+      }
+    }
+    // XAU/USD — use gold-api.com (no key needed for basic price)
+    if (symbol === "XAU/USD") {
+      const res  = await fetch("https://data-asg.goldprice.org/dbXRates/USD");
+      const data = await res.json();
+      if (data.items && data.items[0]?.xauPrice) {
+        return { price: data.items[0].xauPrice, src: "goldprice.org" };
+      }
+    }
+    // BTC/USD — CoinGecko no-key endpoint
+    if (symbol === "BTC/USD") {
+      const res  = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+      const data = await res.json();
+      if (data.bitcoin?.usd) {
+        return { price: data.bitcoin.usd, src: "coingecko" };
+      }
+    }
+  } catch(e) { console.warn("Fallback price fetch failed:", e.message); }
+  return null;
+}
+
+// ─── COMBINED PRICE FETCH ─────────────────────────────────────────────────────
+async function fetchBestPrice(symbol) {
+  const td = await fetchTDPrice(symbol);
+  if (td) return td;
+  const fb = await fetchFallbackPrice(symbol);
+  if (fb) return fb;
   return null;
 }
 
@@ -360,9 +414,11 @@ function usePrice(symbol, fallback) {
   const [price,  setPrice]  = useState(pStore[symbol]??fallback);
   const [chg,    setChg]    = useState(pChgStore[symbol]??0);
   const [apiOk,  setApiOk]  = useState(false);
+  const [priceSrc, setPriceSrc] = useState("–");
   const [loading,setLoading]= useState(true);
   const baseRef  = useRef(fallback);
   const priceRef = useRef(pStore[symbol]??fallback);
+  const firstLoad = useRef(true);
 
   useEffect(()=>{
     return subPrice(symbol, v=>{
@@ -376,27 +432,37 @@ function usePrice(symbol, fallback) {
 
   useEffect(()=>{
     let cancelled=false;
+    firstLoad.current = true;
     const load=async()=>{
-      setLoading(true);
-      const real=await fetchTDPrice(symbol);
+      // Only show loading spinner on first fetch, not on background refresh
+      if (firstLoad.current) setLoading(true);
+      const result = await fetchBestPrice(symbol);
       if(cancelled) return;
-      if(real&&real>0){
-        pStore[symbol]=real; priceRef.current=real; baseRef.current=real;
-        setPrice(real); setChg(0); notifyPrice(symbol,real); setApiOk(true);
+      if(result && result.price > 0){
+        const real = result.price;
+        pStore[symbol]=real; priceRef.current=real;
+        if (firstLoad.current) baseRef.current = real; // baseline only on first load
+        setPrice(real); setApiOk(true); setPriceSrc(result.src);
+        if (firstLoad.current) setChg(0);
+        notifyPrice(symbol, real);
       } else {
-        priceRef.current=fallback; setPrice(fallback);
+        if (firstLoad.current) {
+          priceRef.current=fallback; setPrice(fallback);
+          setApiOk(false); setPriceSrc("fallback");
+        }
       }
-      setLoading(false);
+      if (firstLoad.current) { setLoading(false); firstLoad.current = false; }
     };
     load();
-    const id=setInterval(load,60000);
+    const id=setInterval(load, 30000); // refresh every 30s (more responsive)
     return ()=>{ cancelled=true; clearInterval(id); };
   },[symbol,fallback]);
 
+  // Simulated micro-tick between API refreshes (smooth the display)
   useEffect(()=>{
-    const vol=symbol.includes("BTC")?0.002:symbol.includes("IDR")?0.0001:0.0002;
+    const vol=symbol.includes("BTC")?0.0008:symbol.includes("XAU")?0.0002:symbol.includes("IDR")?0.00005:0.00008;
     const id=setInterval(()=>{
-      const d=(Math.random()-0.48)*vol;
+      const d=(Math.random()-0.495)*vol; // very slight drift, mostly noise
       const next=Math.max(priceRef.current*(1+d),0.0001);
       priceRef.current=next;
       setPrice(next);
@@ -404,42 +470,52 @@ function usePrice(symbol, fallback) {
       pChgStore[symbol]=c;
       setChg(c);
       notifyPrice(symbol,next);
-    },4000);
+    },3000);
     return ()=>clearInterval(id);
   },[symbol]);
 
-  return {price,chg,apiOk,loading};
+  return {price, chg, apiOk, priceSrc, loading};
 }
 
 // ─── HOOK: CANDLES ────────────────────────────────────────────────────────────
+// Sim candles are generated ONCE per symbol+tf and cached in a ref.
+// They never regenerate on livePrice ticks — only when symbol or tf changes.
 function useCandles(symbol, tf, livePrice) {
   const [candles, setCandles] = useState(null);
   const [loading, setLoading] = useState(true);
   const [simMode, setSimMode] = useState(false);
+  // Cache stable sim data so re-renders from livePrice never replace it
+  const simRef = useRef(null);
+  const simKeyRef = useRef(null); // tracks "symbol+tf" to know when to regen
 
   useEffect(()=>{
     let cancelled=false;
     setCandles(null); setSimMode(false); setLoading(true);
+    simRef.current = null; // clear cache on symbol/tf change
+    simKeyRef.current = null;
+
     fetchTDCandles(symbol, tf, 60).then(data=>{
       if(cancelled) return;
       if(data&&data.length>0){
         setCandles(data);
         setSimMode(false);
       } else {
+        // Generate ONCE using the best price available at this moment
         const base = pStore[symbol] ?? livePrice ?? FB[symbol] ?? 1;
-        setCandles(generateSimCandles(base, symbol, tf, 60));
+        const key = `${symbol}|${tf}`;
+        if(simKeyRef.current !== key || !simRef.current) {
+          simRef.current = generateSimCandles(base, symbol, tf, 60);
+          simKeyRef.current = key;
+        }
+        setCandles(simRef.current);
         setSimMode(true);
       }
       setLoading(false);
     });
     return ()=>{ cancelled=true; };
-  },[symbol, tf]);
+  },[symbol, tf]); // intentionally OMIT livePrice — sim must not re-run on price ticks
 
-  useEffect(()=>{
-    if(simMode && livePrice && livePrice > 0){
-      setCandles(generateSimCandles(livePrice, symbol, tf, 60));
-    }
-  },[livePrice, simMode]);
+  // DO NOT have a second useEffect watching livePrice — that was the root cause of Bug 2 & 3
 
   return {candles, loading, simMode};
 }
@@ -493,22 +569,54 @@ const CandleTooltip=({active,payload})=>{
   );
 };
 
+// ─── TIMEFRAME TP/SL MULTIPLIER ───────────────────────────────────────────────
+// Shorter TF = tighter levels; longer TF = wider levels
 // ─── PANEL POSISI FOREX (TP/SL DINAMIS DARI HARGA LIVE) ───────────────────────
-function calcForexPosition(item, livePrice) {
-  const price  = livePrice ?? FB[item.symbol] ?? 1;
-  // TP & SL dihitung dari persentase terhadap harga live
-  const tp = price * (1 + item.tpPct / 100);
-  const sl = price * (1 + item.slPct / 100);
-  const risk   = Math.abs(price - sl);
-  const reward = Math.abs(tp - price);
-  const rr     = risk > 0 ? (reward / risk).toFixed(2) : "–";
-  return { entry: price, tp, sl, rr, tpPct: item.tpPct.toFixed(2), slPct: item.slPct.toFixed(2) };
+// SL = risiko tetap (tight), TP di-scale sesuai TF untuk jaga RR ≥ 1:2
+// TF multiplier hanya berlaku pada TP, SL sengaja tetap tight
+const TF_TP_MULT = { "5min":0.5, "15min":0.75, "30min":1.0, "1h":1.5, "4h":2.5, "1day":4.0 };
+
+function calcForexPosition(item, livePrice, tf="1h") {
+  const price   = livePrice ?? FB[item.symbol] ?? 1;
+  const tpMult  = TF_TP_MULT[tf] ?? 1.5;
+  // SL = fixed tight risk, TP = scaled by TF multiplier (makin panjang TF makin lebar TP)
+  const sl      = price * (1 + item.slPct / 100);
+  const tp      = price * (1 + (item.tpPct * tpMult) / 100);
+  const risk    = Math.abs(price - sl);
+  const reward  = Math.abs(tp - price);
+  // Enforce minimum RR 1:2 — jika kurang, TP dinaikkan sampai RR=2
+  const minReward = risk * 2;
+  const finalTp   = reward >= minReward ? tp : (item.signal === "SELL" ? price - minReward : price + minReward);
+  const finalRR   = risk > 0 ? (Math.abs(finalTp - price) / risk) : 2;
+  const actualTpPct = ((finalTp - price) / price * 100);
+  const actualSlPct = ((sl - price) / price * 100);
+  return {
+    entry: price,
+    tp: finalTp,
+    sl,
+    rr: finalRR.toFixed(2),
+    tpPct: actualTpPct.toFixed(2),
+    slPct: actualSlPct.toFixed(2),
+  };
 }
 
 function PositionPanel({ item, livePrice, tf, isForex }) {
-  const pos = isForex
-    ? calcForexPosition(item, livePrice)
-    : { entry: livePrice, tp: livePrice*(1.03), sl: livePrice*(0.97), rr:"1.00", tpPct:"3.00", slPct:"-3.00" };
+  let pos;
+  if (isForex) {
+    pos = calcForexPosition(item, livePrice, tf);
+  } else {
+    // Saham: SL tight 1.5%, TP scaled by TF for min RR 1:2
+    const tpMult  = TF_TP_MULT[tf] ?? 1.5;
+    const slAbs   = livePrice * 0.015;                        // SL fixed 1.5%
+    const tpBase  = livePrice * 0.030 * tpMult;              // TP base 3% × TF
+    const reward  = Math.max(tpBase, slAbs * 2);             // enforce min RR 1:2
+    const tp      = livePrice + reward;
+    const sl      = livePrice - slAbs;
+    const rr      = (reward / slAbs).toFixed(2);
+    const tpPct   = (reward / livePrice * 100).toFixed(2);
+    const slPct   = (-1.5).toFixed(2);
+    pos = { entry: livePrice, tp, sl, rr, tpPct, slPct };
+  }
   return (
     <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
       <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:10}}>
@@ -553,7 +661,7 @@ function PositionPanel({ item, livePrice, tf, isForex }) {
 // ─── FOREX DETAIL MODAL ───────────────────────────────────────────────────────
 function ForexDetail({item, onClose}) {
   const [tf, setTf] = useState("1h");
-  const {price, chg, apiOk} = usePrice(item.symbol, FB[item.symbol]??1);
+  const {price, chg, apiOk, priceSrc} = usePrice(item.symbol, FB[item.symbol]??1);
   const {candles, loading, simMode} = useCandles(item.symbol, tf, price);
   const rsi = candles ? calcRSI(candles.map(c=>c.close)) : null;
   const smc  = calcSMC(candles);
@@ -563,15 +671,22 @@ function ForexDetail({item, onClose}) {
   const rsiColor = rsi===null?"#6b7280":rsi>70?"#ef4444":rsi<30?"#10b981":"#f59e0b";
   const rsiLabel = rsi===null?"–":rsi>70?"Overbought":rsi<30?"Oversold":"Netral";
 
-  // ★ TP & SL dihitung dari harga live (bukan hardcode)
-  const dynPos = calcForexPosition(item, price);
+  // ★ TP & SL dihitung dari harga live, disesuaikan timeframe
+  const dynPos = calcForexPosition(item, price, tf);
+
+  const srcLabel = apiOk
+    ? (priceSrc==="twelvedata" ? "● Twelve Data Live"
+      : priceSrc==="goldprice.org" ? "● GoldPrice Live"
+      : priceSrc==="coingecko" ? "● CoinGecko Live"
+      : `● Live (${priceSrc})`)
+    : "○ Memuat harga...";
 
   return(
     <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:100,overflow:"auto",paddingBottom:20}}>
       <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:10,borderBottom:"1px solid #334155"}}>
         <div>
           <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'DM Mono',monospace"}}>{item.pair}</div>
-          <div style={{fontSize:12,color:"#64748b"}}>{apiOk ? "● Twelve Data Live" : "○ Twelve Data API"}</div>
+          <div style={{fontSize:12,color:apiOk?"#10b981":"#64748b"}}>{srcLabel}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{textAlign:"right"}}>
@@ -626,7 +741,7 @@ function ForexDetail({item, onClose}) {
           {loading && <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",fontSize:12}}>Memuat data...</div>}
           {!loading && candles && candles.length>0 && (
             <ResponsiveContainer width="100%" height={180}>
-              <ComposedChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+              <LineChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
                 <XAxis dataKey="time" tick={{fontSize:8,fill:"#475569"}}
                   tickFormatter={v=>tf==="1day"?v?.slice(5,10):v?.slice(11,16)||""}
                   interval={Math.floor(chartData.length/5)}/>
@@ -634,24 +749,11 @@ function ForexDetail({item, onClose}) {
                 <Tooltip content={<CandleTooltip/>}/>
                 {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
                 {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
-                {/* TP & SL lines dinamis */}
-                <ReferenceLine y={dynPos.tp} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"TP",fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
-                <ReferenceLine y={dynPos.sl} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"SL",fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
-                <Bar dataKey="close" fill="transparent" barSize={6}
-                  shape={(props)=>{
-                    const {x,y,width,height,payload} = props;
-                    if(!payload) return null;
-                    const isUp = payload.close >= payload.open;
-                    const color = isUp ? "#10b981" : "#ef4444";
-                    return <g key={payload.time}>
-                      <rect x={x} y={y} width={Math.max(width,3)} height={Math.max(Math.abs(height),1)} fill={color} opacity={0.85}/>
-                    </g>;
-                  }}
-                />
-                <Line type="linear" dataKey="high"  stroke="transparent" dot={false}/>
-                <Line type="linear" dataKey="low"   stroke="transparent" dot={false}/>
-                <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
-              </ComposedChart>
+                {/* TP & SL lines dinamis sesuai timeframe */}
+                <ReferenceLine y={dynPos.tp} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:`TP`,fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
+                <ReferenceLine y={dynPos.sl} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:`SL`,fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
+                <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false}/>
+              </LineChart>
             </ResponsiveContainer>
           )}
           {sr.resistance&&sr.support&&(
@@ -761,7 +863,7 @@ function ForexRow({item, onClick}) {
 // ─── SAHAM DETAIL MODAL ───────────────────────────────────────────────────────
 function SahamDetail({item, onClose}) {
   const [tf, setTf] = useState("1h");
-  const {price, chg, apiOk} = usePrice(item.kode, FB[item.kode]??1000);
+  const {price, chg, apiOk, priceSrc} = usePrice(item.kode, FB[item.kode]??1000);
   const {candles, loading, simMode} = useCandles(item.kode, tf, price);
   const up = chg>=0;
   const rsi = candles ? calcRSI(candles.map(c=>c.close)) : null;
@@ -770,9 +872,16 @@ function SahamDetail({item, onClose}) {
   const rsiColor = rsi===null?"#6b7280":rsi>70?"#ef4444":rsi<30?"#10b981":"#f59e0b";
   const rsiLabel = rsi===null?"–":rsi>70?"Overbought":rsi<30?"Oversold":"Netral";
   const chartData = candles ? candles.slice(-40).map((c)=>({...c, color: c.close>=c.open?"#10b981":"#ef4444"})) : [];
+  const srcLabel = apiOk ? `● Live (${priceSrc})` : "○ Memuat harga...";
 
-  const tpPrice = price * 1.05;
-  const slPrice = price * 0.97;
+  const tpMult  = TF_TP_MULT[tf] ?? 1.5;
+  const slAbs   = price * 0.015;                              // SL tight 1.5%
+  const tpBase  = price * 0.030 * tpMult;                    // TP base 3% × TF mult
+  const reward  = Math.max(tpBase, slAbs * 2);               // enforce min RR 1:2
+  const tpPrice = price + reward;
+  const slPrice = price - slAbs;
+  const tpPct   = (reward / price * 100).toFixed(1);
+  const slPct   = (1.5).toFixed(1);
 
   return(
     <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:100,overflow:"auto",paddingBottom:20}}>
@@ -782,7 +891,7 @@ function SahamDetail({item, onClose}) {
             <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'DM Mono',monospace"}}>{item.kode}</div>
             {item.syariah && <SyariahBadge/>}
           </div>
-          <div style={{fontSize:11,color:"#64748b"}}>{item.nama} · {item.kategori}</div>
+          <div style={{fontSize:11,color:apiOk?"#10b981":"#64748b"}}>{srcLabel}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{textAlign:"right"}}>
@@ -800,11 +909,11 @@ function SahamDetail({item, onClose}) {
             <Badge signal={item.signal}/>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
-            <div style={{fontSize:9,color:"#10b981",marginBottom:3}}>TP (+5%)</div>
+            <div style={{fontSize:9,color:"#10b981",marginBottom:3}}>TP (+{tpPct}%)</div>
             <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(tpPrice)}</div>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
-            <div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>SL (-3%)</div>
+            <div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>SL (-{slPct}%)</div>
             <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(slPrice)}</div>
           </div>
         </div>
@@ -834,7 +943,7 @@ function SahamDetail({item, onClose}) {
           {loading && <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",fontSize:12}}>Memuat data...</div>}
           {!loading && candles && candles.length>0 && (
             <ResponsiveContainer width="100%" height={180}>
-              <ComposedChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+              <LineChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
                 <XAxis dataKey="time" tick={{fontSize:8,fill:"#475569"}}
                   tickFormatter={v=>tf==="1day"?v?.slice(5,10):v?.slice(11,16)||""}
                   interval={Math.floor(chartData.length/5)}/>
@@ -842,19 +951,11 @@ function SahamDetail({item, onClose}) {
                 <Tooltip content={<CandleTooltip/>}/>
                 {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
                 {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
-                <Bar dataKey="close" fill="transparent" barSize={6}
-                  shape={(props)=>{
-                    const {x,y,width,height,payload} = props;
-                    if(!payload) return null;
-                    const isUp = payload.close >= payload.open;
-                    const color = isUp ? "#10b981" : "#ef4444";
-                    return <g key={payload.time}><rect x={x} y={y} width={Math.max(width,3)} height={Math.max(Math.abs(height),1)} fill={color} opacity={0.85}/></g>;
-                  }}
-                />
-                <Line type="linear" dataKey="high"  stroke="transparent" dot={false}/>
-                <Line type="linear" dataKey="low"   stroke="transparent" dot={false}/>
-                <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
-              </ComposedChart>
+                {/* TP & SL sesuai timeframe */}
+                <ReferenceLine y={tpPrice} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"TP",fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
+                <ReferenceLine y={slPrice} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"SL",fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
+                <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false}/>
+              </LineChart>
             </ResponsiveContainer>
           )}
         </div>
