@@ -11,34 +11,134 @@ const TD_BASE = "https://api.twelvedata.com";
 const AV_BASE = "https://www.alphavantage.co/query";
 
 // ─── FOREX META ───────────────────────────────────────────────────────────────
+// TP & SL dihitung dinamis dari harga live (persen dari entry)
+// Tidak lagi hardcode agar selalu sesuai harga pasar
 const FOREX_LIST = [
-  { pair: "EUR/USD", symbol: "EUR/USD", dec: 4, signal: "BUY",  kekuatan: 74, tp: "1.0920", sl: "1.0800" },
-  { pair: "GBP/USD", symbol: "GBP/USD", dec: 4, signal: "BUY",  kekuatan: 68, tp: "1.2850", sl: "1.2660" },
-  { pair: "USD/JPY", symbol: "USD/JPY", dec: 2, signal: "SELL", kekuatan: 72, tp: "153.50", sl: "156.80" },
-  { pair: "XAU/USD", symbol: "XAU/USD", dec: 1, signal: "BUY",  kekuatan: 85, tp: "3400",   sl: "3250"   },
-  { pair: "USD/IDR", symbol: "USD/IDR", dec: 0, signal: "SELL", kekuatan: 60, tp: "16100",  sl: "16550"  },
-  { pair: "AUD/USD", symbol: "AUD/USD", dec: 4, signal: "HOLD", kekuatan: 50, tp: "0.6580", sl: "0.6420" },
-  { pair: "USD/CAD", symbol: "USD/CAD", dec: 4, signal: "SELL", kekuatan: 62, tp: "1.3500", sl: "1.3780" },
-  { pair: "BTC/USD", symbol: "BTC/USD", dec: 0, signal: "BUY",  kekuatan: 78, tp: "115000", sl: "98000"  },
+  { pair: "EUR/USD", symbol: "EUR/USD", dec: 4, signal: "BUY",  kekuatan: 74, tpPct: 0.55, slPct: -0.45 },
+  { pair: "GBP/USD", symbol: "GBP/USD", dec: 4, signal: "BUY",  kekuatan: 68, tpPct: 0.60, slPct: -0.50 },
+  { pair: "USD/JPY", symbol: "USD/JPY", dec: 2, signal: "SELL", kekuatan: 72, tpPct: -0.50, slPct: 0.40 },
+  { pair: "XAU/USD", symbol: "XAU/USD", dec: 1, signal: "BUY",  kekuatan: 85, tpPct: 1.20, slPct: -0.90 },
+  { pair: "USD/IDR", symbol: "USD/IDR", dec: 0, signal: "SELL", kekuatan: 60, tpPct: -1.00, slPct: 0.80 },
+  { pair: "AUD/USD", symbol: "AUD/USD", dec: 4, signal: "HOLD", kekuatan: 50, tpPct: 0.45, slPct: -0.38 },
+  { pair: "USD/CAD", symbol: "USD/CAD", dec: 4, signal: "SELL", kekuatan: 62, tpPct: -0.55, slPct: 0.42 },
+  { pair: "BTC/USD", symbol: "BTC/USD", dec: 0, signal: "BUY",  kekuatan: 78, tpPct: 5.00, slPct: -3.50 },
 ];
 
-// ─── SAHAM META ───────────────────────────────────────────────────────────────
+// ─── SAHAM SYARIAH (IDX ISSI / JII) ──────────────────────────────────────────
+const SYARIAH_KODE = new Set([
+  "AADI","AALI","ABMM","ACST","ADCP","ADHI","ADMR","ADRO","AGAR","AGII",
+  "AIMS","AISA","AKPI","AKRA","AKSI","ALDO","AMAN","AMFG","AMIN","ANDI",
+  "ANJT","ANTM","APLN","ARCI","ARNA","ASII","ASPI","ASRI","ASSA","ATIC",
+  "ATLA","AUTO","AVIA","AYLS","BAIK","BAPI","BATR","BAUT","BBRM","BEST",
+  "BIKE","BINO","BIRD","BISI","BLES","BOLT","BRAM","BRIS","BRMS","BRNA",
+  "BRPT","BSBK","BSDE","BSML","BSSR","BUAH","BUKK","BULL","BYAN","CAKK",
+  "CAMP","CANI","CARE","CASS","CBDK","CBRE","CCSI","CEKA","CGAS","CHEM",
+  "CINT","CITA","CITY","CLEO","CLPI","CMNP","CMRY","COAL","CPIN","CPRO",
+  "CRAB","CRSN","CSAP","CSMI","CSRA","CTBN","CTRA","DAAZ","DADA","DATA",
+  "DAYA","DCII","DEPO","DEWI","DGWG","DILD","DMAS","AMMN","ANTM","BYAN",
+  "ICBP","INDF","KLBF","MYOR","PTBA","SMGR","INTP","TLKM","UNTR","CPIN",
+  "BRPT","INCO","ITMG","MTEL","DNET","SMMA","ADMR","GOTO","AMRT","ISAT",
+]);
+
+// ─── SEMUA SAHAM IDX (dari PDF + tambahan) ────────────────────────────────────
 const SAHAM_LIST = [
-  { kode:"BBCA",  nama:"Bank Central Asia",     kategori:"Perbankan",  signal:"BUY",  kekuatan:82, indikator:"RSI 42 oversold, MACD golden cross, Volume +34%" },
-  { kode:"BBRI",  nama:"Bank Rakyat Indonesia", kategori:"Perbankan",  signal:"SELL", kekuatan:35, indikator:"RSI 68 overbought, MACD death cross, Asing net sell" },
-  { kode:"BMRI",  nama:"Bank Mandiri",          kategori:"Perbankan",  signal:"HOLD", kekuatan:55, indikator:"RSI 52 netral, Sideways di support 5.800" },
-  { kode:"BRPT",  nama:"Barito Renewables",     kategori:"Energi",     signal:"BUY",  kekuatan:76, indikator:"RSI 45, Breakout resistance, Laba Q1 +800% YoY" },
-  { kode:"TLKM",  nama:"Telkom Indonesia",      kategori:"Telko",      signal:"HOLD", kekuatan:50, indikator:"RSI 50 netral, Konsolidasi, Dividen yield 5.2%" },
-  { kode:"AMMN",  nama:"Amman Mineral",         kategori:"Tambang",    signal:"HOLD", kekuatan:55, indikator:"RSI 55, Tunggu break 7.500 untuk entry" },
-  { kode:"ANTM",  nama:"Aneka Tambang",         kategori:"Tambang",    signal:"BUY",  kekuatan:71, indikator:"RSI 38 oversold, Emas bullish, Rebound probable" },
-  { kode:"INDF",  nama:"Indofood",              kategori:"Konsumer",   signal:"BUY",  kekuatan:65, indikator:"RSI 44, Support kuat 6.200, Defensif saat volatil" },
-  { kode:"UNVR",  nama:"Unilever Indonesia",    kategori:"Konsumer",   signal:"HOLD", kekuatan:48, indikator:"RSI 51, Sideways, Tekanan margin input cost" },
-  { kode:"ASII",  nama:"Astra International",   kategori:"Otomotif",   signal:"BUY",  kekuatan:67, indikator:"RSI 41, Valuasi murah PBV 1.2x, Dividen menarik" },
-  { kode:"ICBP",  nama:"Indofood CBP",          kategori:"Konsumer",   signal:"HOLD", kekuatan:52, indikator:"RSI 53, Konsolidasi pasca rally, Tunggu pullback" },
-  { kode:"GOTO",  nama:"GoTo Gojek Tokopedia",  kategori:"Teknologi",  signal:"SELL", kekuatan:30, indikator:"RSI 65, Resistance kuat, Rugi operasional masih besar" },
+  // Perbankan
+  { kode:"BBCA",  nama:"Bank Central Asia",        kategori:"Perbankan",  signal:"BUY",  kekuatan:82, syariah:false, indikator:"RSI 42 oversold, MACD golden cross, Volume +34%, DER rendah" },
+  { kode:"BBRI",  nama:"Bank Rakyat Indonesia",    kategori:"Perbankan",  signal:"SELL", kekuatan:35, syariah:false, indikator:"RSI 68 overbought, MACD death cross, Asing net sell" },
+  { kode:"BMRI",  nama:"Bank Mandiri",             kategori:"Perbankan",  signal:"HOLD", kekuatan:55, syariah:false, indikator:"RSI 52 netral, Sideways di support 5.800, NIM stabil" },
+  { kode:"BRIS",  nama:"Bank Syariah Indonesia",   kategori:"Perbankan",  signal:"BUY",  kekuatan:73, syariah:true,  indikator:"RSI 44, CASA growth +12%, Pembiayaan syariah ekspansi" },
+  { kode:"BTPS",  nama:"Bank BTPN Syariah",        kategori:"Perbankan",  signal:"BUY",  kekuatan:68, syariah:true,  indikator:"RSI 40, NPF rendah 1.2%, ROE tinggi 26%, Syariah compliant" },
+  { kode:"BANK",  nama:"Bank Aladin Syariah",      kategori:"Perbankan",  signal:"HOLD", kekuatan:52, syariah:true,  indikator:"RSI 51, Digital banking growth, Masih rugi operasional" },
+  { kode:"BBSS",  nama:"Bumi Benowo Sukses Sejaht",kategori:"Perbankan",  signal:"HOLD", kekuatan:45, syariah:false, indikator:"RSI 50 netral, Volume rendah, Likuiditas terbatas" },
+  // Energi & Tambang
+  { kode:"ADRO",  nama:"Alamtri Resources Ind.",   kategori:"Tambang",    signal:"BUY",  kekuatan:75, syariah:true,  indikator:"RSI 45, Harga batu bara stabil, Dividen yield 7%, Free cash flow positif" },
+  { kode:"AADI",  nama:"Adaro Andalan Indonesia",  kategori:"Tambang",    signal:"BUY",  kekuatan:70, syariah:true,  indikator:"RSI 43, Spin-off dari ADRO, Valuasi murah, Ekspansi energi" },
+  { kode:"ADMR",  nama:"Alamtri Minerals Ind.",    kategori:"Tambang",    signal:"HOLD", kekuatan:55, syariah:true,  indikator:"RSI 53, Eksplorasi mineral aktif, Tunggu katalis harga" },
+  { kode:"ANTM",  nama:"Aneka Tambang",            kategori:"Tambang",    signal:"BUY",  kekuatan:71, syariah:true,  indikator:"RSI 38 oversold, Emas bullish, Rebound probable, HPAL proyek" },
+  { kode:"INCO",  nama:"Vale Indonesia",           kategori:"Tambang",    signal:"HOLD", kekuatan:58, syariah:true,  indikator:"RSI 52, Nikel harga bergejolak, EV demand jangka panjang" },
+  { kode:"PTBA",  nama:"Bukit Asam",               kategori:"Tambang",    signal:"BUY",  kekuatan:72, syariah:true,  indikator:"RSI 41, PLTU Sumsel lanjut, Dividen konsisten, ROE 25%" },
+  { kode:"ITMG",  nama:"Indo Tambangraya Megah",   kategori:"Tambang",    signal:"BUY",  kekuatan:69, syariah:true,  indikator:"RSI 40, Ekspor batu bara kuat, Dividen yield 8.5%, Kas bersih" },
+  { kode:"BYAN",  nama:"Bayan Resources",          kategori:"Tambang",    signal:"SELL", kekuatan:38, syariah:true,  indikator:"RSI 67, Valuasi premium, Harga batu bara softening" },
+  { kode:"BRPT",  nama:"Barito Pacific",           kategori:"Energi",     signal:"BUY",  kekuatan:76, syariah:true,  indikator:"RSI 45, Breakout resistance, Laba Q1 +800% YoY, Renewables" },
+  { kode:"BUMI",  nama:"Bumi Resources",           kategori:"Tambang",    signal:"SELL", kekuatan:30, syariah:false, indikator:"RSI 66, Utang tinggi, Arus kas negatif, Risiko delisting" },
+  { kode:"ARCI",  nama:"Archi Indonesia",          kategori:"Tambang",    signal:"HOLD", kekuatan:50, syariah:true,  indikator:"RSI 51, Produksi emas stabil, Tunggu harga emas naik" },
+  // Telekomunikasi & Teknologi
+  { kode:"TLKM",  nama:"Telkom Indonesia",         kategori:"Telko",      signal:"HOLD", kekuatan:50, syariah:true,  indikator:"RSI 50 netral, Konsolidasi, Dividen yield 5.2%, TowerCo spin-off" },
+  { kode:"ISAT",  nama:"Indosat Ooredoo Hutchison",kategori:"Telko",      signal:"BUY",  kekuatan:65, syariah:true,  indikator:"RSI 42, Merger synergy realized, EBITDA margin naik, 5G rollout" },
+  { kode:"MTEL",  nama:"Mitratel",                 kategori:"Telko",      signal:"BUY",  kekuatan:67, syariah:true,  indikator:"RSI 43, Tower co pure play, Pendapatan recurring, Dividend potential" },
+  { kode:"DNET",  nama:"Indoritel Makmur Int.",    kategori:"Teknologi",  signal:"HOLD", kekuatan:52, syariah:false, indikator:"RSI 53, Investasi di Indomaret, Likuiditas rendah" },
+  { kode:"GOTO",  nama:"GoTo Gojek Tokopedia",     kategori:"Teknologi",  signal:"SELL", kekuatan:30, syariah:false, indikator:"RSI 65, Resistance kuat, Rugi operasional masih besar, Bakar uang" },
+  { kode:"BELI",  nama:"Global Digital Niaga",     kategori:"Teknologi",  signal:"SELL", kekuatan:32, syariah:false, indikator:"RSI 64, Blibli masih rugi, Kompetisi e-commerce ketat" },
+  { kode:"DCII",  nama:"DCI Indonesia",            kategori:"Teknologi",  signal:"BUY",  kekuatan:80, syariah:true,  indikator:"RSI 38, Data center demand tinggi, AI tailwind, ROE 28%" },
+  { kode:"CYBR",  nama:"ITSEC Asia",              kategori:"Teknologi",  signal:"BUY",  kekuatan:71, syariah:true,  indikator:"RSI 40, Cybersecurity demand naik, Revenue +45% YoY" },
+  // Konsumer
+  { kode:"INDF",  nama:"Indofood",                 kategori:"Konsumer",   signal:"BUY",  kekuatan:65, syariah:true,  indikator:"RSI 44, Support kuat 6.200, Defensif saat volatil, COGS efisien" },
+  { kode:"ICBP",  nama:"Indofood CBP",             kategori:"Konsumer",   signal:"HOLD", kekuatan:52, syariah:true,  indikator:"RSI 53, Konsolidasi pasca rally, Tunggu pullback ke 9.500" },
+  { kode:"UNVR",  nama:"Unilever Indonesia",       kategori:"Konsumer",   signal:"HOLD", kekuatan:48, syariah:false, indikator:"RSI 51, Sideways, Tekanan margin input cost, Dividen 100%" },
+  { kode:"MYOR",  nama:"Mayora Indah",             kategori:"Konsumer",   signal:"BUY",  kekuatan:68, syariah:true,  indikator:"RSI 41, Ekspor meningkat, Brand kuat, Valuasi wajar" },
+  { kode:"CPIN",  nama:"Charoen Pokphand Ind.",    kategori:"Konsumer",   signal:"HOLD", kekuatan:54, syariah:true,  indikator:"RSI 52, Harga DOC stabil, Margin tertekan pakan" },
+  { kode:"KLBF",  nama:"Kalbe Farma",              kategori:"Konsumer",   signal:"BUY",  kekuatan:70, syariah:true,  indikator:"RSI 42, Farmasi defensif, ROE 18%, Pipeline produk baru" },
+  { kode:"CMRY",  nama:"Cisarua Mountain Dairy",   kategori:"Konsumer",   signal:"BUY",  kekuatan:72, syariah:true,  indikator:"RSI 40, Produk premium, Volume naik, Ekspansi kapasitas" },
+  { kode:"CLEO",  nama:"Sariguna Primatirta",      kategori:"Konsumer",   signal:"BUY",  kekuatan:66, syariah:true,  indikator:"RSI 43, AMDK tumbuh, Distribusi luas, Margin stabil" },
+  { kode:"CAMP",  nama:"Campina Ice Cream",        kategori:"Konsumer",   signal:"HOLD", kekuatan:50, syariah:true,  indikator:"RSI 51, Musiman, Ekspansi gerai, Harga bahan naik" },
+  // Properti & Konstruksi
+  { kode:"BSDE",  nama:"Bumi Serpong Damai",       kategori:"Properti",   signal:"HOLD", kekuatan:53, syariah:true,  indikator:"RSI 52, Properti sideways, Marketing sales turun, Land bank besar" },
+  { kode:"CTRA",  nama:"Ciputra Development",      kategori:"Properti",   signal:"BUY",  kekuatan:63, syariah:true,  indikator:"RSI 44, Backlog kuat, Proyek township, KPR demand naik" },
+  { kode:"ASRI",  nama:"Alam Sutera Realty",       kategori:"Properti",   signal:"HOLD", kekuatan:47, syariah:false, indikator:"RSI 50, Utang USD exposure, Penjualan flat, Restrukturisasi" },
+  { kode:"DMAS",  nama:"Puradelta Lestari",        kategori:"Properti",   signal:"BUY",  kekuatan:69, syariah:true,  indikator:"RSI 41, Kawasan industri GIIC, Investasi FDI naik, Dividend" },
+  { kode:"CBDK",  nama:"Bangun Kosambi Sukses",    kategori:"Properti",   signal:"BUY",  kekuatan:74, syariah:true,  indikator:"RSI 38, IPO segar, Proyek BSD, Valuasi attractif" },
+  { kode:"ADHI",  nama:"Adhi Karya",               kategori:"Konstruksi", signal:"HOLD", kekuatan:48, syariah:false, indikator:"RSI 50, BUMN konstruksi, Proyek IKN, Utang tinggi" },
+  { kode:"ADCP",  nama:"Adhi Commuter Properti",   kategori:"Properti",   signal:"HOLD", kekuatan:51, syariah:true,  indikator:"RSI 52, TOD development, LRT Jabodebek, Pendapatan baru" },
+  // Otomotif & Industri
+  { kode:"ASII",  nama:"Astra International",      kategori:"Otomotif",   signal:"BUY",  kekuatan:67, syariah:true,  indikator:"RSI 41, Valuasi murah PBV 1.2x, Dividen menarik, Diversifikasi" },
+  { kode:"AUTO",  nama:"Astra Otoparts",           kategori:"Otomotif",   signal:"BUY",  kekuatan:63, syariah:true,  indikator:"RSI 43, Komponen EV, Ekspansi ASEAN, Margin naik" },
+  { kode:"BOLT",  nama:"Garuda Metalindo",         kategori:"Industri",   signal:"HOLD", kekuatan:49, syariah:true,  indikator:"RSI 51, Baut & fastener, Volume produksi flat" },
+  { kode:"BRAM",  nama:"Indo Kordsa",              kategori:"Industri",   signal:"HOLD", kekuatan:52, syariah:true,  indikator:"RSI 52, Kabel ban, Ekspor kuat, Margin tertekan" },
+  { kode:"BUKK",  nama:"Bukaka Teknik Utama",      kategori:"Industri",   signal:"BUY",  kekuatan:64, syariah:true,  indikator:"RSI 42, Proyek infrastruktur, Order book penuh, EPC" },
+  // Agrikultur
+  { kode:"AALI",  nama:"Astra Agro Lestari",       kategori:"Agrikultur", signal:"HOLD", kekuatan:53, syariah:true,  indikator:"RSI 52, CPO harga stabil, Produktivitas FFB naik" },
+  { kode:"ANJT",  nama:"Austindo Nusantara Jaya",  kategori:"Agrikultur", signal:"BUY",  kekuatan:64, syariah:true,  indikator:"RSI 43, Replanting selesai, CPO outlook positif" },
+  { kode:"ANDI",  nama:"Andira Agro",              kategori:"Agrikultur", signal:"HOLD", kekuatan:48, syariah:true,  indikator:"RSI 50, Karet & sawit, Volume kecil, Likuiditas rendah" },
+  { kode:"CSRA",  nama:"Cisadane Sawit Raya",      kategori:"Agrikultur", signal:"BUY",  kekuatan:60, syariah:true,  indikator:"RSI 41, Luas kebun naik, CPO demand Asia" },
+  // Infrastruktur
+  { kode:"UNTR",  nama:"United Tractors",          kategori:"Infrastruktur", signal:"BUY",  kekuatan:74, syariah:true, indikator:"RSI 42, Alat berat mining, Dividen yield 6%, Kas bersih besar" },
+  { kode:"SMGR",  nama:"Semen Indonesia",          kategori:"Infrastruktur", signal:"HOLD", kekuatan:51, syariah:true, indikator:"RSI 52, Permintaan semen naik tipis, Proyek IKN, Kapasitas idle" },
+  { kode:"INTP",  nama:"Indocement",               kategori:"Infrastruktur", signal:"HOLD", kekuatan:49, syariah:true, indikator:"RSI 51, Valuasi premium, Utilisasi rendah, Kompetisi ketat" },
+  { kode:"CMNP",  nama:"Citra Marga Nusaphala",    kategori:"Infrastruktur", signal:"BUY",  kekuatan:61, syariah:true, indikator:"RSI 43, Jalan tol Jabotabek, Trafik naik, Recurring income" },
+  { kode:"BIRD",  nama:"Blue Bird",                kategori:"Infrastruktur", signal:"HOLD", kekuatan:52, syariah:true, indikator:"RSI 52, Taksi konvensional, Ride hailing persaingan" },
+  { kode:"ASSA",  nama:"Adi Sarana Armada",        kategori:"Infrastruktur", signal:"BUY",  kekuatan:65, syariah:true, indikator:"RSI 41, Fleet management, Logistik ekspansi, ROE 15%" },
+  // Keuangan non-bank
+  { kode:"ABMM",  nama:"ABM Investama",            kategori:"Keuangan",   signal:"HOLD", kekuatan:50, syariah:false, indikator:"RSI 51, Holding energi, Diversifikasi aset" },
+  { kode:"ACES",  nama:"Aspirasi Hidup Indonesia", kategori:"Ritel",      signal:"BUY",  kekuatan:67, syariah:true,  indikator:"RSI 42, Ace Hardware, SSSG positif, Ekspansi gerai" },
+  { kode:"AMRT",  nama:"Sumber Alfaria Trijaya",   kategori:"Ritel",      signal:"BUY",  kekuatan:73, syariah:true,  indikator:"RSI 40, Alfamart jaringan terbesar, Revenue tumbuh, SSG+" },
+  { kode:"DAYA",  nama:"Duta Intidaya",            kategori:"Ritel",      signal:"HOLD", kekuatan:48, syariah:true,  indikator:"RSI 51, Watsons Indonesia, Ekspansi toko baru" },
+  { kode:"CSAP",  nama:"Catur Sentosa Adiprana",   kategori:"Ritel",      signal:"BUY",  kekuatan:61, syariah:true,  indikator:"RSI 42, Material bangunan, Proyek infrastruktur benefit" },
+  // Healthcare
+  { kode:"CARE",  nama:"Metro Healthcare Ind.",    kategori:"Kesehatan",  signal:"BUY",  kekuatan:66, syariah:true,  indikator:"RSI 41, Rumah sakit ekspansi, Pasien naik, Margin recovery" },
+  { kode:"BMHS",  nama:"Bundamedik",               kategori:"Kesehatan",  signal:"HOLD", kekuatan:52, syariah:true,  indikator:"RSI 53, RS Bundamedik, Pasien JKN, Kapasitas naik" },
+  { kode:"KLBF",  nama:"Kalbe Farma",              kategori:"Kesehatan",  signal:"BUY",  kekuatan:70, syariah:true,  indikator:"RSI 42, Farmasi defensif, ROE 18%, Pipeline produk baru" },
+  { kode:"DGNS",  nama:"Diagnos Laboratorium",     kategori:"Kesehatan",  signal:"BUY",  kekuatan:63, syariah:true,  indikator:"RSI 43, Lab diagnostik, Post-pandemic recovery, Ekspansi" },
+  { kode:"CHEK",  nama:"Diastika Biotekindo",      kategori:"Kesehatan",  signal:"HOLD", kekuatan:50, syariah:true,  indikator:"RSI 51, Alat kesehatan, Impor USD exposure" },
+  // Media & Lainnya
+  { kode:"BMTR",  nama:"Global Mediacom",          kategori:"Media",      signal:"SELL", kekuatan:33, syariah:false, indikator:"RSI 63, TV terrestrial declining, Streaming persaingan ketat" },
+  { kode:"AVIA",  nama:"Avia Avian",               kategori:"Industri",   signal:"BUY",  kekuatan:74, syariah:true,  indikator:"RSI 41, Cat dekoratif #1, Margin tinggi, Ekspansi distribusi" },
+  { kode:"AKRA",  nama:"AKR Corporindo",           kategori:"Distribusi", signal:"BUY",  kekuatan:68, syariah:true,  indikator:"RSI 42, Distribusi BBM, Kawasan JIIPE, Logistik kuat" },
+  { kode:"CEKA",  nama:"Wilmar Cahaya Indonesia",  kategori:"Konsumer",   signal:"HOLD", kekuatan:51, syariah:true,  indikator:"RSI 52, Minyak goreng, Margin volatile, DER rendah" },
+  { kode:"AKPI",  nama:"Argha Karya Prima Ind.",   kategori:"Industri",   signal:"HOLD", kekuatan:49, syariah:true,  indikator:"RSI 50, Kemasan plastik, Kapasitas naik, Input cost turun" },
+  { kode:"ALDO",  nama:"Alkindo Naratama",         kategori:"Industri",   signal:"BUY",  kekuatan:62, syariah:true,  indikator:"RSI 43, Kemasan kertas, Permintaan naik, Efisiensi biaya" },
+  { kode:"SMMA",  nama:"Sinar Mas Multiartha",     kategori:"Keuangan",   signal:"HOLD", kekuatan:55, syariah:false, indikator:"RSI 53, Holding keuangan, Diversifikasi bisnis" },
+  { kode:"TPIA",  nama:"Chandra Asri Petrochemical",kategori:"Kimia",     signal:"HOLD", kekuatan:54, syariah:true,  indikator:"RSI 52, Petrokimia, Kapasitas ekspansi, Harga PTA volatile" },
+  { kode:"DEPO",  nama:"Caturkarda Depo Bangunan", kategori:"Ritel",      signal:"BUY",  kekuatan:65, syariah:true,  indikator:"RSI 42, Material bangunan, Konsumen retail, Ekspansi" },
+  { kode:"DATA",  nama:"Remala Abadi",             kategori:"Teknologi",  signal:"BUY",  kekuatan:60, syariah:true,  indikator:"RSI 43, Data center, Cloud demand, Kapasitas ekspansi" },
+  { kode:"AGII",  nama:"Samator Indo Gas",         kategori:"Industri",   signal:"HOLD", kekuatan:52, syariah:true,  indikator:"RSI 52, Gas industri, Pelanggan manufaktur stabil" },
+  { kode:"AMMN",  nama:"Amman Mineral Nusa Tenggara",kategori:"Tambang",  signal:"HOLD", kekuatan:55, syariah:true,  indikator:"RSI 55, Tembaga & emas, Tunggu break 7.500 untuk entry" },
 ];
 
-const KATEGORI_SAHAM = ["Semua","Perbankan","Energi","Tambang","Telko","Konsumer","Otomotif","Teknologi"];
+// Remove duplicate KLBF
+const uniqueSaham = Array.from(new Map(SAHAM_LIST.map(s => [s.kode, s])).values());
+
+const KATEGORI_SAHAM = ["Semua","Syariah","Perbankan","Tambang","Energi","Telko","Teknologi","Konsumer","Properti","Konstruksi","Otomotif","Industri","Agrikultur","Infrastruktur","Ritel","Kesehatan","Keuangan","Media","Kimia","Distribusi"];
+const SAHAM_VIEWS = ["Semua","Top Gainer","Top Loser","Paling Aktif"];
 const TIMEFRAMES = ["5min","15min","30min","1h","4h","1day"];
 const TF_LABEL   = { "5min":"5M","15min":"15M","30min":"30M","1h":"1H","4h":"4H","1day":"1D" };
 
@@ -100,26 +200,19 @@ function calcSR(candles) {
   };
 }
 
-// ─── ★ FIX 1: SIMULASI CANDLE REALISTIS ───────────────────────────────────────
-// Menghasilkan data OHLC simulasi berbasis harga real yang sudah di-fetch
-// Tanpa perlu API tambahan. Volatilitas disesuaikan per pair.
+// ─── SIMULASI CANDLE REALISTIS ─────────────────────────────────────────────────
 function generateSimCandles(basePrice, symbol, tf, count=60) {
   const isGold   = symbol.includes("XAU");
   const isBTC    = symbol.includes("BTC");
   const isJPY    = symbol.includes("JPY");
   const isIDR    = symbol.includes("IDR");
-
-  // Volatilitas relatif per candle berdasarkan pair & timeframe
   const tfMult = { "5min":0.3,"15min":0.5,"30min":0.7,"1h":1,"4h":2,"1day":4 };
   const mult   = tfMult[tf] ?? 1;
   const baseVol = isGold ? 0.0015 : isBTC ? 0.008 : isJPY||isIDR ? 0.0006 : 0.0012;
   const vol    = baseVol * mult;
-
   const now  = Date.now();
   const tfMs = { "5min":5*60e3,"15min":15*60e3,"30min":30*60e3,"1h":60*60e3,"4h":4*3600e3,"1day":86400e3 };
   const step = tfMs[tf] ?? 3600e3;
-
-  // Simulasi random walk dengan drift kecil (bull bias 52%)
   let price = basePrice;
   const candles = [];
   for (let i = count; i >= 0; i--) {
@@ -127,17 +220,13 @@ function generateSimCandles(basePrice, symbol, tf, count=60) {
     const timeStr = tf === "1day"
       ? t.toISOString().slice(0,10)
       : t.toISOString().slice(0,16).replace("T"," ");
-
     const drift = (Math.random() - 0.48) * vol;
     const open  = price;
     const close = Math.max(open * (1 + drift), 0.0001);
-
-    // Wick lebih pendek dari body untuk candle realistis
     const bodySize = Math.abs(close - open);
     const wickMult = 0.5 + Math.random() * 1.5;
     const high = Math.max(open, close) + bodySize * wickMult * Math.random();
     const low  = Math.min(open, close) - bodySize * wickMult * Math.random();
-
     candles.push({
       time:   timeStr,
       open:   parseFloat(open.toFixed(isGold?2:isBTC?0:isJPY||isIDR?2:5)),
@@ -204,8 +293,7 @@ async function fetchAVNews(topics="forex,financial_markets") {
   return null;
 }
 
-// ─── ★ FIX 3: TRANSLATE NEWS VIA CLAUDE API ──────────────────────────────────
-// Terjemahkan judul & summary berita Inggris → Indonesia via Claude
+// ─── TRANSLATE NEWS VIA CLAUDE API ────────────────────────────────────────────
 async function translateNews(newsArr) {
   if (!newsArr || newsArr.length === 0) return newsArr;
   try {
@@ -232,7 +320,7 @@ async function translateNews(newsArr) {
       summary: parsed[i]?.summary || n.summary,
     }));
   } catch(e) {
-    return newsArr; // Jika gagal, tampilkan versi asli
+    return newsArr;
   }
 }
 
@@ -241,8 +329,18 @@ const FB = {
   "EUR/USD":1.0854,"GBP/USD":1.2731,"USD/JPY":155.42,
   "XAU/USD":3312.5,"USD/IDR":16380,"AUD/USD":0.6510,
   "USD/CAD":1.3640,"BTC/USD":103500,
-  BBCA:6200,BBRI:4100,BMRI:5850,BRPT:2480,TLKM:2850,
+  BBCA:8500,BBRI:4100,BMRI:5850,BRPT:2480,TLKM:2850,
   AMMN:7350,ANTM:3280,INDF:6400,UNVR:2100,ASII:4200,ICBP:9800,GOTO:62,
+  BRIS:2100,BTPS:1650,BANK:580,ADRO:2100,AADI:6800,ADMR:650,INCO:3200,
+  PTBA:3050,ITMG:25000,BYAN:18000,BUMI:85,ARCI:620,ISAT:1800,MTEL:630,
+  DNET:2100,BELI:450,DCII:35000,CYBR:890,MYOR:2300,CPIN:4800,KLBF:1620,
+  CMRY:4200,CLEO:680,CAMP:1100,BSDE:1050,CTRA:980,ASRI:380,DMAS:225,
+  CBDK:2800,ADHI:540,ADCP:195,AUTO:2150,BOLT:430,BRAM:4100,BUKK:1750,
+  AALI:9500,ANJT:1200,ANDI:425,CSRA:780,UNTR:22000,SMGR:4200,INTP:6800,
+  CMNP:1800,BIRD:2050,ASSA:830,ABMM:2100,ACES:785,AMRT:2700,DAYA:520,
+  CSAP:680,CARE:1250,BMHS:340,DGNS:615,CHEK:290,BMTR:460,AVIA:7800,
+  AKRA:1580,CEKA:1050,AKPI:680,ALDO:590,SMMA:8400,TPIA:6200,DEPO:890,
+  DATA:750,AGII:3100,
 };
 
 // ─── PRICE STORE (shared) ─────────────────────────────────────────────────────
@@ -254,10 +352,13 @@ const subPrice=(sym,cb)=>{
 };
 const notifyPrice=(sym,v)=>{ if(pListeners[sym]) pListeners[sym].forEach(cb=>cb(v)); };
 
+// Track simulated change % for stock list
+const pChgStore = {};
+
 // ─── HOOK: PRICE ──────────────────────────────────────────────────────────────
 function usePrice(symbol, fallback) {
   const [price,  setPrice]  = useState(pStore[symbol]??fallback);
-  const [chg,    setChg]    = useState(0);
+  const [chg,    setChg]    = useState(pChgStore[symbol]??0);
   const [apiOk,  setApiOk]  = useState(false);
   const [loading,setLoading]= useState(true);
   const baseRef  = useRef(fallback);
@@ -267,7 +368,9 @@ function usePrice(symbol, fallback) {
     return subPrice(symbol, v=>{
       priceRef.current=v;
       setPrice(v);
-      setChg(((v-baseRef.current)/baseRef.current)*100);
+      const c = ((v-baseRef.current)/baseRef.current)*100;
+      pChgStore[symbol]=c;
+      setChg(c);
     });
   },[symbol]);
 
@@ -297,7 +400,9 @@ function usePrice(symbol, fallback) {
       const next=Math.max(priceRef.current*(1+d),0.0001);
       priceRef.current=next;
       setPrice(next);
-      setChg(((next-baseRef.current)/baseRef.current)*100);
+      const c=((next-baseRef.current)/baseRef.current)*100;
+      pChgStore[symbol]=c;
+      setChg(c);
       notifyPrice(symbol,next);
     },4000);
     return ()=>clearInterval(id);
@@ -306,23 +411,21 @@ function usePrice(symbol, fallback) {
   return {price,chg,apiOk,loading};
 }
 
-// ─── ★ FIX 1+2: HOOK: CANDLES (dengan fallback ke simulasi) ──────────────────
+// ─── HOOK: CANDLES ────────────────────────────────────────────────────────────
 function useCandles(symbol, tf, livePrice) {
   const [candles, setCandles] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [simMode, setSimMode] = useState(false); // true = pakai simulasi
+  const [simMode, setSimMode] = useState(false);
 
   useEffect(()=>{
     let cancelled=false;
     setCandles(null); setSimMode(false); setLoading(true);
-
     fetchTDCandles(symbol, tf, 60).then(data=>{
       if(cancelled) return;
       if(data&&data.length>0){
         setCandles(data);
         setSimMode(false);
       } else {
-        // ★ FALLBACK: Pakai data simulasi realistis berbasis harga real
         const base = pStore[symbol] ?? livePrice ?? FB[symbol] ?? 1;
         setCandles(generateSimCandles(base, symbol, tf, 60));
         setSimMode(true);
@@ -332,7 +435,6 @@ function useCandles(symbol, tf, livePrice) {
     return ()=>{ cancelled=true; };
   },[symbol, tf]);
 
-  // Jika harga real masuk setelah simulasi sudah terbentuk, re-generate simulasi
   useEffect(()=>{
     if(simMode && livePrice && livePrice > 0){
       setCandles(generateSimCandles(livePrice, symbol, tf, 60));
@@ -350,6 +452,11 @@ const Badge=({signal})=>(
   </span>
 );
 
+const SyariahBadge=()=>(
+  <span style={{background:"rgba(16,185,129,0.1)",color:"#10b981",border:"1px solid rgba(16,185,129,0.3)",
+    borderRadius:4,padding:"1px 5px",fontSize:8,fontWeight:700,letterSpacing:0.5}}>☪ SYARIAH</span>
+);
+
 const StrengthBar=({value,color})=>{
   const s=Math.max(0,Math.min(100,value));
   return(
@@ -362,7 +469,6 @@ const StrengthBar=({value,color})=>{
   );
 };
 
-// Mini sparkline
 const Spark=({data,color})=>(
   <ResponsiveContainer width={60} height={24}>
     <LineChart data={data} margin={{top:2,bottom:2,left:0,right:0}}>
@@ -371,7 +477,6 @@ const Spark=({data,color})=>(
   </ResponsiveContainer>
 );
 
-// ─── Custom candlestick tooltip ────────────────────────────────────────────────
 const CandleTooltip=({active,payload})=>{
   if(!active||!payload?.length) return null;
   const d=payload[0]?.payload;
@@ -388,51 +493,35 @@ const CandleTooltip=({active,payload})=>{
   );
 };
 
-// ─── ★ FIX 4: PANEL POSISI PER TIMEFRAME ──────────────────────────────────────
-// Kalkulasi Entry, TP, SL, dan Risk/Reward berbasis candle & sinyal
-function calcPosition(item, candles, tf, livePrice) {
+// ─── PANEL POSISI FOREX (TP/SL DINAMIS DARI HARGA LIVE) ───────────────────────
+function calcForexPosition(item, livePrice) {
   const price  = livePrice ?? FB[item.symbol] ?? 1;
-  const sr     = calcSR(candles);
-  const isBUY  = item.signal === "BUY";
-  const isSELL = item.signal === "SELL";
-
-  // Entry = harga saat ini (atau S/R terdekat jika tersedia)
-  const entry  = price;
-
-  // TP & SL dari metadata (preset), tapi sesuaikan jika simulasi dekat harga
-  const tpNum  = parseFloat(item.tp);
-  const slNum  = parseFloat(item.sl);
-
-  // Risk/Reward
-  const risk   = Math.abs(entry - slNum);
-  const reward = Math.abs(tpNum - entry);
+  // TP & SL dihitung dari persentase terhadap harga live
+  const tp = price * (1 + item.tpPct / 100);
+  const sl = price * (1 + item.slPct / 100);
+  const risk   = Math.abs(price - sl);
+  const reward = Math.abs(tp - price);
   const rr     = risk > 0 ? (reward / risk).toFixed(2) : "–";
-
-  // Jarak entry ke TP & SL dalam persen
-  const tpPct  = ((tpNum - entry) / entry * 100).toFixed(2);
-  const slPct  = ((slNum - entry) / entry * 100).toFixed(2);
-
-  return { entry, tp: tpNum, sl: slNum, rr, tpPct, slPct };
+  return { entry: price, tp, sl, rr, tpPct: item.tpPct.toFixed(2), slPct: item.slPct.toFixed(2) };
 }
 
-function PositionPanel({ item, candles, livePrice, tf }) {
-  const pos = calcPosition(item, candles || [], tf, livePrice);
-  const isBUY = item.signal === "BUY";
+function PositionPanel({ item, livePrice, tf, isForex }) {
+  const pos = isForex
+    ? calcForexPosition(item, livePrice)
+    : { entry: livePrice, tp: livePrice*(1.03), sl: livePrice*(0.97), rr:"1.00", tpPct:"3.00", slPct:"-3.00" };
   return (
     <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
       <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:10}}>
-        📍 Panel Posisi · {TF_LABEL[tf]}
+        📍 Panel Posisi · {TF_LABEL[tf]||tf}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {/* Entry */}
         <div style={{background:"#0f172a",borderRadius:8,padding:"8px 10px"}}>
           <div style={{fontSize:9,color:"#64748b",marginBottom:3,letterSpacing:0.8}}>ENTRY</div>
           <div style={{fontSize:13,fontWeight:700,color:"#60a5fa",fontFamily:"'DM Mono',monospace"}}>
-            {fmt(pos.entry, item.dec)}
+            {fmt(pos.entry, item.dec??0)}
           </div>
           <div style={{fontSize:9,color:"#64748b",marginTop:2}}>Harga Pasar</div>
         </div>
-        {/* Risk/Reward */}
         <div style={{background:"#0f172a",borderRadius:8,padding:"8px 10px"}}>
           <div style={{fontSize:9,color:"#64748b",marginBottom:3,letterSpacing:0.8}}>RISK/REWARD</div>
           <div style={{fontSize:13,fontWeight:700,color:parseFloat(pos.rr)>=2?"#10b981":"#f59e0b",fontFamily:"'DM Mono',monospace"}}>
@@ -442,25 +531,19 @@ function PositionPanel({ item, candles, livePrice, tf }) {
             {parseFloat(pos.rr)>=2?"✅ R:R Bagus":"⚠️ R:R Rendah"}
           </div>
         </div>
-        {/* Take Profit */}
         <div style={{background:"rgba(16,185,129,0.08)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(16,185,129,0.2)"}}>
           <div style={{fontSize:9,color:"#10b981",marginBottom:3,letterSpacing:0.8}}>TAKE PROFIT</div>
           <div style={{fontSize:13,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>
-            {fmt(pos.tp, item.dec)}
+            {fmt(pos.tp, item.dec??0)}
           </div>
-          <div style={{fontSize:9,color:"#6ee7b7",marginTop:2}}>
-            {pos.tpPct > 0 ? "+" : ""}{pos.tpPct}% dari entry
-          </div>
+          <div style={{fontSize:9,color:"#6ee7b7",marginTop:2}}>+{Math.abs(pos.tpPct)}% dari entry</div>
         </div>
-        {/* Stop Loss */}
         <div style={{background:"rgba(239,68,68,0.08)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(239,68,68,0.2)"}}>
           <div style={{fontSize:9,color:"#ef4444",marginBottom:3,letterSpacing:0.8}}>STOP LOSS</div>
           <div style={{fontSize:13,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>
-            {fmt(pos.sl, item.dec)}
+            {fmt(pos.sl, item.dec??0)}
           </div>
-          <div style={{fontSize:9,color:"#fca5a5",marginTop:2}}>
-            {pos.slPct > 0 ? "+" : ""}{pos.slPct}% dari entry
-          </div>
+          <div style={{fontSize:9,color:"#fca5a5",marginTop:2}}>{pos.slPct}% dari entry</div>
         </div>
       </div>
     </div>
@@ -471,38 +554,28 @@ function PositionPanel({ item, candles, livePrice, tf }) {
 function ForexDetail({item, onClose}) {
   const [tf, setTf] = useState("1h");
   const {price, chg, apiOk} = usePrice(item.symbol, FB[item.symbol]??1);
-
-  // ★ FIX 1: useCandles sekarang otomatis fallback ke simulasi jika API gagal
   const {candles, loading, simMode} = useCandles(item.symbol, tf, price);
-
   const rsi = candles ? calcRSI(candles.map(c=>c.close)) : null;
   const smc  = calcSMC(candles);
   const sr   = calcSR(candles);
   const up   = chg>=0;
-
-  const chartData = candles ? candles.slice(-40).map((c)=>({
-    ...c,
-    color: c.close>=c.open?"#10b981":"#ef4444",
-  })) : [];
-
+  const chartData = candles ? candles.slice(-40).map((c)=>({...c, color: c.close>=c.open?"#10b981":"#ef4444"})) : [];
   const rsiColor = rsi===null?"#6b7280":rsi>70?"#ef4444":rsi<30?"#10b981":"#f59e0b";
   const rsiLabel = rsi===null?"–":rsi>70?"Overbought":rsi<30?"Oversold":"Netral";
 
+  // ★ TP & SL dihitung dari harga live (bukan hardcode)
+  const dynPos = calcForexPosition(item, price);
+
   return(
     <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:100,overflow:"auto",paddingBottom:20}}>
-      {/* Header */}
       <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:10,borderBottom:"1px solid #334155"}}>
         <div>
           <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'DM Mono',monospace"}}>{item.pair}</div>
-          <div style={{fontSize:12,color:"#64748b"}}>
-            {apiOk ? "● Twelve Data Live" : "○ Twelve Data API"}
-          </div>
+          <div style={{fontSize:12,color:"#64748b"}}>{apiOk ? "● Twelve Data Live" : "○ Twelve Data API"}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:16,fontWeight:700,color:up?"#10b981":"#ef4444",fontFamily:"'DM Mono',monospace"}}>
-              {fmt(price, item.dec)}
-            </div>
+            <div style={{fontSize:16,fontWeight:700,color:up?"#10b981":"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(price, item.dec)}</div>
             <div style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(4)}%</div>
           </div>
           <button onClick={onClose} style={{background:"#334155",border:"none",color:"white",borderRadius:8,padding:"8px 12px",fontSize:13,cursor:"pointer",fontWeight:600}}>✕</button>
@@ -510,19 +583,21 @@ function ForexDetail({item, onClose}) {
       </div>
 
       <div style={{padding:"12px 14px"}}>
-        {/* Signal, TP, SL */}
+        {/* Signal + TP/SL dinamis */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:`1px solid ${sigBdr(item.signal)}`}}>
             <div style={{fontSize:9,color:"#64748b",marginBottom:3}}>SINYAL</div>
             <Badge signal={item.signal}/>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
-            <div style={{fontSize:9,color:"#64748b",marginBottom:3}}>TP</div>
-            <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>{item.tp}</div>
+            <div style={{fontSize:9,color:"#10b981",marginBottom:3}}>TP (Live)</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.tp, item.dec)}</div>
+            <div style={{fontSize:9,color:"#6ee7b7"}}>+{Math.abs(item.tpPct)}%</div>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
-            <div style={{fontSize:9,color:"#64748b",marginBottom:3}}>SL</div>
-            <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>{item.sl}</div>
+            <div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>SL (Live)</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>{fmt(dynPos.sl, item.dec)}</div>
+            <div style={{fontSize:9,color:"#fca5a5"}}>{item.slPct}%</div>
           </div>
         </div>
 
@@ -538,47 +613,38 @@ function ForexDetail({item, onClose}) {
           ))}
         </div>
 
-        {/* ★ FIX 1+2: Candlestick Chart — selalu tampil (simulasi jika API gagal) */}
+        {/* Chart */}
         <div style={{background:"#1e293b",borderRadius:12,padding:"12px 4px 8px",marginBottom:12,border:"1px solid #334155"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingLeft:10,paddingRight:10,marginBottom:6}}>
-            <div style={{fontSize:11,color:"#64748b",fontWeight:600}}>
-              Chart {item.pair} · {TF_LABEL[tf]}
-            </div>
+            <div style={{fontSize:11,color:"#64748b",fontWeight:600}}>Chart {item.pair} · {TF_LABEL[tf]}</div>
             <div>
               {loading && <span style={{fontSize:10,color:"#f59e0b"}}>⏳ Memuat...</span>}
               {!loading && simMode && <span style={{fontSize:10,color:"#f59e0b"}}>⚡ Simulasi Realistis</span>}
               {!loading && !simMode && <span style={{fontSize:10,color:"#10b981"}}>● Live Data</span>}
             </div>
           </div>
-          {loading && (
-            <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",fontSize:12}}>
-              Memuat data...
-            </div>
-          )}
+          {loading && <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",fontSize:12}}>Memuat data...</div>}
           {!loading && candles && candles.length>0 && (
             <ResponsiveContainer width="100%" height={180}>
               <ComposedChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
                 <XAxis dataKey="time" tick={{fontSize:8,fill:"#475569"}}
                   tickFormatter={v=>tf==="1day"?v?.slice(5,10):v?.slice(11,16)||""}
                   interval={Math.floor(chartData.length/5)}/>
-                <YAxis domain={["auto","auto"]} tick={{fontSize:8,fill:"#475569"}} width={52}
-                  tickFormatter={v=>fmt(v,item.dec)}/>
+                <YAxis domain={["auto","auto"]} tick={{fontSize:8,fill:"#475569"}} width={52} tickFormatter={v=>fmt(v,item.dec)}/>
                 <Tooltip content={<CandleTooltip/>}/>
                 {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
                 {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
-                {/* Candlestick body via Bar + wick via Line */}
+                {/* TP & SL lines dinamis */}
+                <ReferenceLine y={dynPos.tp} stroke="#10b981" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"TP",fill:"#10b981",fontSize:8,position:"insideTopRight"}}/>
+                <ReferenceLine y={dynPos.sl} stroke="#ef4444" strokeDasharray="5 3" strokeWidth={1.5} label={{value:"SL",fill:"#ef4444",fontSize:8,position:"insideBottomRight"}}/>
                 <Bar dataKey="close" fill="transparent" barSize={6}
                   shape={(props)=>{
                     const {x,y,width,height,payload} = props;
                     if(!payload) return null;
                     const isUp = payload.close >= payload.open;
                     const color = isUp ? "#10b981" : "#ef4444";
-                    const bodyTop    = Math.min(payload.open, payload.close);
-                    const bodyBottom = Math.max(payload.open, payload.close);
-                    // recharts YAxis: lower value = higher pixel position
                     return <g key={payload.time}>
-                      <rect x={x} y={y} width={Math.max(width,3)} height={Math.max(Math.abs(height),1)}
-                        fill={color} opacity={0.85}/>
+                      <rect x={x} y={y} width={Math.max(width,3)} height={Math.max(Math.abs(height),1)} fill={color} opacity={0.85}/>
                     </g>;
                   }}
                 />
@@ -596,28 +662,18 @@ function ForexDetail({item, onClose}) {
           )}
         </div>
 
-        {/* ★ FIX 2: RSI & SMC selalu tampil (dihitung dari simulasi jika perlu) */}
+        {/* RSI & SMC */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-          {/* RSI */}
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:"1px solid #334155"}}>
             <div style={{fontSize:9,color:"#64748b",marginBottom:4,fontWeight:600}}>RSI (14)</div>
-            <div style={{fontSize:18,fontWeight:800,color:rsiColor,fontFamily:"'DM Mono',monospace"}}>
-              {loading?"…":rsi===null?"–":rsi.toFixed(1)}
-            </div>
+            <div style={{fontSize:18,fontWeight:800,color:rsiColor,fontFamily:"'DM Mono',monospace"}}>{loading?"…":rsi===null?"–":rsi.toFixed(1)}</div>
             <div style={{fontSize:10,color:rsiColor,marginTop:2}}>{loading?"Memuat…":rsiLabel}</div>
-            {!loading && rsi!==null&&(
-              <div style={{marginTop:6}}>
-                <StrengthBar value={rsi} color={rsiColor}/>
-              </div>
-            )}
+            {!loading && rsi!==null&&<div style={{marginTop:6}}><StrengthBar value={rsi} color={rsiColor}/></div>}
             {simMode&&!loading&&<div style={{fontSize:8,color:"#475569",marginTop:4}}>* Berbasis simulasi</div>}
           </div>
-          {/* SMC */}
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:"1px solid #334155"}}>
             <div style={{fontSize:9,color:"#64748b",marginBottom:4,fontWeight:600}}>SMC STRUKTUR</div>
-            {loading ? (
-              <div style={{fontSize:11,color:"#64748b"}}>Memuat…</div>
-            ) : (
+            {loading ? <div style={{fontSize:11,color:"#64748b"}}>Memuat…</div> : (
               <>
                 <div style={{fontSize:11,fontWeight:700,color:smc.trend==="Bullish"?"#10b981":"#ef4444",marginBottom:3}}>
                   {smc.trend==="Bullish"?"↑":"↓"} {smc.trend==="–"?"–":smc.trend}
@@ -645,8 +701,8 @@ function ForexDetail({item, onClose}) {
           </div>
         )}
 
-        {/* ★ FIX 4: Panel Posisi per Timeframe */}
-        {!loading && <PositionPanel item={item} candles={candles} livePrice={price} tf={tf}/>}
+        {/* Panel Posisi */}
+        {!loading && <PositionPanel item={item} livePrice={price} tf={tf} isForex={true}/>}
 
         {/* Kekuatan sinyal */}
         <div style={{background:"#1e293b",borderRadius:10,padding:"12px",border:"1px solid #334155"}}>
@@ -677,6 +733,10 @@ function ForexRow({item, onClick}) {
     return ()=>clearInterval(id);
   },[]);
 
+  // TP/SL shown dynamically
+  const tp = price * (1 + item.tpPct/100);
+  const sl = price * (1 + item.slPct/100);
+
   return(
     <div onClick={onClick} style={{padding:"11px 0",borderBottom:"1px solid #1f2937",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div style={{flex:1}}>
@@ -689,7 +749,9 @@ function ForexRow({item, onClick}) {
           <span style={{fontSize:14,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"white"}}>{fmt(price,item.dec)}</span>
           <span style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(4)}%</span>
         </div>
-        <div style={{marginTop:4,fontSize:10,color:"#64748b"}}>TP {item.tp} · SL {item.sl} · <span style={{color:"#60a5fa"}}>Tap untuk detail →</span></div>
+        <div style={{marginTop:4,fontSize:10,color:"#64748b"}}>
+          TP <span style={{color:"#10b981"}}>{fmt(tp,item.dec)}</span> · SL <span style={{color:"#ef4444"}}>{fmt(sl,item.dec)}</span> · <span style={{color:"#60a5fa"}}>Tap detail →</span>
+        </div>
       </div>
       <Spark data={sparkData.current} color={up?"#10b981":"#ef4444"}/>
     </div>
@@ -698,13 +760,28 @@ function ForexRow({item, onClick}) {
 
 // ─── SAHAM DETAIL MODAL ───────────────────────────────────────────────────────
 function SahamDetail({item, onClose}) {
-  const {price, chg} = usePrice(item.kode, FB[item.kode]??1000);
+  const [tf, setTf] = useState("1h");
+  const {price, chg, apiOk} = usePrice(item.kode, FB[item.kode]??1000);
+  const {candles, loading, simMode} = useCandles(item.kode, tf, price);
   const up = chg>=0;
+  const rsi = candles ? calcRSI(candles.map(c=>c.close)) : null;
+  const smc  = calcSMC(candles);
+  const sr   = calcSR(candles);
+  const rsiColor = rsi===null?"#6b7280":rsi>70?"#ef4444":rsi<30?"#10b981":"#f59e0b";
+  const rsiLabel = rsi===null?"–":rsi>70?"Overbought":rsi<30?"Oversold":"Netral";
+  const chartData = candles ? candles.slice(-40).map((c)=>({...c, color: c.close>=c.open?"#10b981":"#ef4444"})) : [];
+
+  const tpPrice = price * 1.05;
+  const slPrice = price * 0.97;
+
   return(
     <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:100,overflow:"auto",paddingBottom:20}}>
-      <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0}}>
+      <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,borderBottom:"1px solid #334155"}}>
         <div>
-          <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'DM Mono',monospace"}}>{item.kode}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'DM Mono',monospace"}}>{item.kode}</div>
+            {item.syariah && <SyariahBadge/>}
+          </div>
           <div style={{fontSize:11,color:"#64748b"}}>{item.nama} · {item.kategori}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -716,30 +793,124 @@ function SahamDetail({item, onClose}) {
         </div>
       </div>
       <div style={{padding:"14px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        {/* Signal + TP/SL */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:`1px solid ${sigBdr(item.signal)}`}}>
             <div style={{fontSize:9,color:"#64748b",marginBottom:3}}>SINYAL</div>
             <Badge signal={item.signal}/>
           </div>
           <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
-            <div style={{fontSize:9,color:"#64748b",marginBottom:3}}>KEKUATAN</div>
-            <div style={{fontSize:16,fontWeight:800,color:sigColor(item.signal),fontFamily:"'DM Mono',monospace"}}>{item.kekuatan}%</div>
+            <div style={{fontSize:9,color:"#10b981",marginBottom:3}}>TP (+5%)</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(tpPrice)}</div>
+          </div>
+          <div style={{background:"#1e293b",borderRadius:10,padding:"10px"}}>
+            <div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>SL (-3%)</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(slPrice)}</div>
           </div>
         </div>
+
+        {/* Timeframe selector */}
+        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
+          {TIMEFRAMES.map(t=>(
+            <button key={t} onClick={()=>setTf(t)} style={{
+              flexShrink:0,padding:"5px 12px",borderRadius:7,border:"none",cursor:"pointer",
+              fontSize:11,fontWeight:700,fontFamily:"'DM Mono',monospace",
+              background:tf===t?"#3b82f6":"#1e293b",
+              color:tf===t?"white":"#64748b",
+            }}>{TF_LABEL[t]}</button>
+          ))}
+        </div>
+
+        {/* Chart */}
+        <div style={{background:"#1e293b",borderRadius:12,padding:"12px 4px 8px",marginBottom:12,border:"1px solid #334155"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingLeft:10,paddingRight:10,marginBottom:6}}>
+            <div style={{fontSize:11,color:"#64748b",fontWeight:600}}>Chart {item.kode} · {TF_LABEL[tf]}</div>
+            <div>
+              {loading && <span style={{fontSize:10,color:"#f59e0b"}}>⏳ Memuat...</span>}
+              {!loading && simMode && <span style={{fontSize:10,color:"#f59e0b"}}>⚡ Simulasi</span>}
+              {!loading && !simMode && <span style={{fontSize:10,color:"#10b981"}}>● Live Data</span>}
+            </div>
+          </div>
+          {loading && <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",fontSize:12}}>Memuat data...</div>}
+          {!loading && candles && candles.length>0 && (
+            <ResponsiveContainer width="100%" height={180}>
+              <ComposedChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+                <XAxis dataKey="time" tick={{fontSize:8,fill:"#475569"}}
+                  tickFormatter={v=>tf==="1day"?v?.slice(5,10):v?.slice(11,16)||""}
+                  interval={Math.floor(chartData.length/5)}/>
+                <YAxis domain={["auto","auto"]} tick={{fontSize:8,fill:"#475569"}} width={52} tickFormatter={v=>`${(v/1000).toFixed(0)}rb`}/>
+                <Tooltip content={<CandleTooltip/>}/>
+                {sr.resistance && <ReferenceLine y={sr.resistance} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1} label={{value:"R",fill:"#ef4444",fontSize:8,position:"insideTopRight"}}/>}
+                {sr.support    && <ReferenceLine y={sr.support}    stroke="#10b981" strokeDasharray="3 3" strokeWidth={1} label={{value:"S",fill:"#10b981",fontSize:8,position:"insideBottomRight"}}/>}
+                <Bar dataKey="close" fill="transparent" barSize={6}
+                  shape={(props)=>{
+                    const {x,y,width,height,payload} = props;
+                    if(!payload) return null;
+                    const isUp = payload.close >= payload.open;
+                    const color = isUp ? "#10b981" : "#ef4444";
+                    return <g key={payload.time}><rect x={x} y={y} width={Math.max(width,3)} height={Math.max(Math.abs(height),1)} fill={color} opacity={0.85}/></g>;
+                  }}
+                />
+                <Line type="linear" dataKey="high"  stroke="transparent" dot={false}/>
+                <Line type="linear" dataKey="low"   stroke="transparent" dot={false}/>
+                <Line type="monotone" dataKey="close" stroke="#60a5fa" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* RSI & SMC */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+          <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:"1px solid #334155"}}>
+            <div style={{fontSize:9,color:"#64748b",marginBottom:4,fontWeight:600}}>RSI (14)</div>
+            <div style={{fontSize:18,fontWeight:800,color:rsiColor,fontFamily:"'DM Mono',monospace"}}>{loading?"…":rsi===null?"–":rsi.toFixed(1)}</div>
+            <div style={{fontSize:10,color:rsiColor,marginTop:2}}>{loading?"Memuat…":rsiLabel}</div>
+            {!loading && rsi!==null&&<div style={{marginTop:6}}><StrengthBar value={rsi} color={rsiColor}/></div>}
+          </div>
+          <div style={{background:"#1e293b",borderRadius:10,padding:"10px",border:"1px solid #334155"}}>
+            <div style={{fontSize:9,color:"#64748b",marginBottom:4,fontWeight:600}}>SMC STRUKTUR</div>
+            {loading ? <div style={{fontSize:11,color:"#64748b"}}>Memuat…</div> : (
+              <>
+                <div style={{fontSize:11,fontWeight:700,color:smc.trend==="Bullish"?"#10b981":"#ef4444",marginBottom:3}}>
+                  {smc.trend==="Bullish"?"↑":"↓"} {smc.trend==="–"?"–":smc.trend}
+                </div>
+                <div style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>{smc.bos}</div>
+                <div style={{fontSize:10,color:"#94a3b8"}}>{smc.choch}</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* S&R */}
+        {sr.resistance&&sr.support&&(
+          <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:8}}>📐 Support & Resistance</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontSize:11,color:"#64748b"}}>Resistance</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#ef4444",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(sr.resistance)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:11,color:"#64748b"}}>Support</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"'DM Mono',monospace"}}>Rp {fmt(sr.support)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Indikator */}
         <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
           <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:8}}>📊 Indikator Teknikal</div>
           {item.indikator.split(",").map((ind,i)=>(
-            <div key={i} style={{fontSize:12,color:"#94a3b8",padding:"4px 0",borderBottom:i<item.indikator.split(",").length-1?"1px solid #1e3a5f":"none"}}>
-              • {ind.trim()}
-            </div>
+            <div key={i} style={{fontSize:12,color:"#94a3b8",padding:"4px 0",borderBottom:i<item.indikator.split(",").length-1?"1px solid #1e3a5f":"none"}}>• {ind.trim()}</div>
           ))}
         </div>
-        <div style={{background:"#1e293b",borderRadius:10,padding:"12px",marginBottom:12,border:"1px solid #334155"}}>
+
+        {/* Kekuatan sinyal */}
+        <div style={{background:"#1e293b",borderRadius:10,padding:"12px",border:"1px solid #334155"}}>
           <div style={{fontSize:11,fontWeight:700,color:"white",marginBottom:8}}>💪 Kekuatan Sinyal</div>
           <StrengthBar value={item.kekuatan} color={sigColor(item.signal)}/>
-        </div>
-        <div style={{background:"#172033",borderRadius:10,padding:"12px",border:"1px solid #1e3a5f",fontSize:11,color:"#64748b",lineHeight:1.7}}>
-          ⚠️ Harga saham IDX menggunakan data simulasi + Alpha Vantage. Gunakan sebagai referensi saja, bukan rekomendasi investasi.
+          <div style={{fontSize:10,color:"#64748b",marginTop:6}}>
+            ⚠️ Edukatif saja. Bukan rekomendasi investasi resmi.
+          </div>
         </div>
       </div>
     </div>
@@ -749,107 +920,83 @@ function SahamDetail({item, onClose}) {
 // ─── SAHAM ROW ────────────────────────────────────────────────────────────────
 function SahamRow({item, onClick}) {
   const {price, chg, loading} = usePrice(item.kode, FB[item.kode]??1000);
-  const up=chg>=0;
+  const up = chg>=0;
+  const sparkData = useRef(Array.from({length:20},()=>({v:(FB[item.kode]??1000)*(1+(Math.random()-0.5)*0.005)})));
+
+  useEffect(()=>{
+    const id=setInterval(()=>{
+      const last=sparkData.current[sparkData.current.length-1].v;
+      const next=last*(1+(Math.random()-0.48)*0.0008);
+      sparkData.current=[...sparkData.current.slice(-19),{v:next}];
+    },3000);
+    return ()=>clearInterval(id);
+  },[]);
+
   return(
-    <div onClick={onClick} style={{padding:"11px 0",borderBottom:"1px solid #1f2937",cursor:"pointer"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div style={{flex:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-            <span style={{fontSize:13,fontWeight:700,fontFamily:"'DM Mono',monospace",color:"white"}}>{item.kode}</span>
-            <span style={{fontSize:9,color:"#64748b",background:"#1e293b",padding:"1px 5px",borderRadius:4}}>{item.kategori}</span>
-            <Badge signal={item.signal}/>
-            {loading&&<span style={{fontSize:9,color:"#64748b"}}>⏳</span>}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"white"}}>Rp {fmt(price)}</span>
-            <span style={{fontSize:11,color:up?"#10b981":"#ef4444"}}>{up?"+":""}{chg.toFixed(2)}%</span>
-          </div>
-          <div style={{marginTop:4}}>
-            <StrengthBar value={item.kekuatan} color={sigColor(item.signal)}/>
-          </div>
-          <div style={{fontSize:10,color:"#64748b",marginTop:3}}>{item.indikator.split(",")[0]} · <span style={{color:"#60a5fa"}}>Tap detail →</span></div>
+    <div onClick={onClick} style={{padding:"10px 0",borderBottom:"1px solid #1f2937",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{flex:1}}>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,fontWeight:700,fontFamily:"'DM Mono',monospace",color:"white"}}>{item.kode}</span>
+          <Badge signal={item.signal}/>
+          {item.syariah && <SyariahBadge/>}
         </div>
+        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>{item.nama}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace",color:"white"}}>Rp {fmt(price)}</span>
+          <span style={{fontSize:11,color:up?"#10b981":"#ef4444",fontWeight:600}}>{up?"+":""}{chg.toFixed(2)}%</span>
+          {loading&&<span style={{fontSize:9,color:"#64748b"}}>⏳</span>}
+        </div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
+        <Spark data={sparkData.current} color={up?"#10b981":"#ef4444"}/>
+        <span style={{fontSize:9,color:"#64748b"}}>{item.kategori}</span>
       </div>
     </div>
   );
 }
 
-// ─── ★ FIX 3: NEWS TAB dengan auto-translate ─────────────────────────────────
-const FALLBACK_NEWS=[
-  {id:"f1",judul:"Federal Reserve memberi sinyal potensi pemangkasan suku bunga seiring inflasi yang mendingin",sumber:"Reuters",waktu:"08:30",url:"#",sentimen:0.3,summary:"Bank Sentral AS (The Fed) mengindikasikan akan mulai memangkas suku bunga karena inflasi menunjukkan tanda-tanda mendingin menuju target 2%."},
-  {id:"f2",judul:"Emas melonjak melewati $3.312 didorong permintaan safe-haven di tengah meningkatnya ketegangan geopolitik",sumber:"Bloomberg",waktu:"08:15",url:"#",sentimen:0.4,summary:"XAU/USD naik ke level tertinggi baru karena investor berbondong-bondong mencari aset safe-haven di tengah meningkatnya ketegangan global."},
-  {id:"f3",judul:"Dolar AS melemah pasca data tenaga kerja AS mengecewakan, EUR/USD tembus level kunci",sumber:"FX Street",waktu:"07:55",url:"#",sentimen:-0.2,summary:"Dolar AS turun luas setelah Non-Farm Payrolls datang di bawah ekspektasi, mendorong EUR/USD di atas 1,0850."},
-  {id:"f4",judul:"Bank Indonesia tahan suku bunga di 5,75%, fokus pada stabilitas rupiah",sumber:"BI",waktu:"07:30",url:"#",sentimen:0.1,summary:"Bank Indonesia mempertahankan suku bunga acuannya di 5,75% untuk mendukung stabilitas mata uang di tengah tekanan eksternal."},
-  {id:"f5",judul:"IHSG rebound 1,1% dipimpin sektor perbankan dan energi",sumber:"IDX",waktu:"07:00",url:"#",sentimen:0.35,summary:"Indeks Harga Saham Gabungan pulih kuat, dengan saham perbankan memimpin kenaikan setelah laporan laba korporasi yang positif."},
-];
-
+// ─── NEWS TAB ─────────────────────────────────────────────────────────────────
 function NewsTab() {
-  const [news,         setNews]         = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [translating,  setTranslating]  = useState(false);
-  const [expand,       setExpand]       = useState(null);
-  const [filter,       setFilter]       = useState("Semua");
+  const [news,    setNews]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter,  setFilter]  = useState("all");
+  const [expand,  setExpand]  = useState(null);
 
   useEffect(()=>{
     setLoading(true);
-    fetchAVNews("forex,financial_markets,economy_macro").then(async(data)=>{
+    fetchAVNews().then(async data=>{
       if(data&&data.length>0){
-        setNews(data);      // Tampilkan dulu versi Inggris
-        setLoading(false);
-
-        // ★ FIX 3: Terjemahkan via Claude API di background
-        setTranslating(true);
-        const translated = await translateNews(data);
+        const translated=await translateNews(data.slice(0,12));
         setNews(translated);
-        setTranslating(false);
       } else {
-        // Fallback sudah dalam Bahasa Indonesia
-        setNews(FALLBACK_NEWS);
-        setLoading(false);
+        setNews([
+          {id:1,judul:"Bank Indonesia Pertahankan Suku Bunga di 6.25%",sumber:"BI",waktu:"08:00",url:"#",sentimen:0.2,summary:"Rapat Dewan Gubernur memutuskan mempertahankan BI Rate pada level 6,25% dengan mempertimbangkan stabilitas nilai tukar rupiah."},
+          {id:2,judul:"Harga Emas Dunia Sentuh Rekor Baru $3.300/Troy Ounce",sumber:"Reuters",waktu:"10:30",url:"#",sentimen:0.5,summary:"Safe haven demand mendorong emas ke level tertinggi sepanjang masa di tengah ketidakpastian geopolitik global."},
+          {id:3,judul:"IHSG Ditutup Melemah 0.8% Tekanan Jual Asing",sumber:"IDX",waktu:"16:00",url:"#",sentimen:-0.3,summary:"Indeks Harga Saham Gabungan turun di akhir sesi akibat net sell asing Rp 1.2 Triliun terutama di sektor perbankan."},
+        ]);
       }
+      setLoading(false);
     });
   },[]);
 
-  const FILTERS=["Semua","Bullish","Bearish","Neutral"];
-  const filtered = !news ? [] : filter==="Semua" ? news : news.filter(n=>{
-    if(filter==="Bullish") return n.sentimen>0.15;
-    if(filter==="Bearish") return n.sentimen<-0.15;
-    return Math.abs(n.sentimen)<=0.15;
-  });
+  const sentColor = s => s > 0.15 ? "#10b981" : s < -0.15 ? "#ef4444" : "#f59e0b";
+  const sentLabel = s => s > 0.15 ? "📈 Positif" : s < -0.15 ? "📉 Negatif" : "➡️ Netral";
 
-  const sentColor = s => s>0.15?"#10b981":s<-0.15?"#ef4444":"#f59e0b";
-  const sentLabel = s => s>0.15?"Bullish":s<-0.15?"Bearish":"Neutral";
+  const filtered = filter==="all"?news:filter==="pos"?news.filter(n=>n.sentimen>0.15):news.filter(n=>n.sentimen<=-0.15);
 
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div>
-          <div style={{fontSize:14,fontWeight:700,color:"white"}}>Berita & Sentimen</div>
-          <div style={{fontSize:11,color:"#64748b"}}>Alpha Vantage News API</div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          {loading&&<span style={{fontSize:11,color:"#f59e0b"}}>⏳ Memuat...</span>}
-          {!loading&&translating&&<span style={{fontSize:11,color:"#60a5fa"}}>🌐 Menerjemahkan...</span>}
-          {!loading&&!translating&&news&&news!==FALLBACK_NEWS&&<span style={{fontSize:10,color:"#10b981"}}>● Live News · 🇮🇩</span>}
-        </div>
-      </div>
-
-      {/* Filter */}
-      <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
-        {FILTERS.map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{
-            flexShrink:0,padding:"5px 12px",borderRadius:7,border:"none",cursor:"pointer",
-            fontSize:11,fontWeight:700,
-            background:filter===f?"#3b82f6":"#1e293b",
-            color:filter===f?"white":"#64748b",
-          }}>{f}</button>
+      <div style={{fontSize:14,fontWeight:700,color:"white",marginBottom:2}}>Berita Pasar</div>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>Berita terkini & analisis sentimen</div>
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        {[{k:"all",l:"Semua"},{k:"pos",l:"📈 Positif"},{k:"neg",l:"📉 Negatif"}].map(f=>(
+          <button key={f.k} onClick={()=>setFilter(f.k)} style={{
+            padding:"5px 12px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,
+            background:filter===f.k?"#3b82f6":"#1e293b",color:filter===f.k?"white":"#64748b",
+          }}>{f.l}</button>
         ))}
       </div>
-
-      {loading&&(
-        <div style={{textAlign:"center",padding:"40px 0",color:"#64748b",fontSize:13}}>Memuat berita terkini...</div>
-      )}
-
+      {loading&&<div style={{textAlign:"center",padding:"40px 0",color:"#64748b",fontSize:13}}>Memuat berita terkini...</div>}
       {!loading&&filtered.map((n,i)=>(
         <div key={n.id||i} style={{marginBottom:10,background:"#1e293b",borderRadius:10,overflow:"hidden",border:"1px solid #334155"}}>
           <div style={{padding:"10px 12px"}}>
@@ -861,21 +1008,15 @@ function NewsTab() {
               <span style={{fontSize:10,fontWeight:700,color:sentColor(n.sentimen),flexShrink:0,marginLeft:6}}>{sentLabel(n.sentimen)}</span>
             </div>
             <p style={{margin:"0 0 8px",fontSize:12,lineHeight:1.65,color:"#e2e8f0",fontWeight:500}}>{n.judul}</p>
-            {expand===i&&n.summary&&(
-              <p style={{margin:"0 0 8px",fontSize:11,color:"#94a3b8",lineHeight:1.7}}>{n.summary}</p>
-            )}
+            {expand===i&&n.summary&&<p style={{margin:"0 0 8px",fontSize:11,color:"#94a3b8",lineHeight:1.7}}>{n.summary}</p>}
             <div style={{display:"flex",gap:8}}>
               {n.summary&&(
-                <button onClick={()=>setExpand(expand===i?null:i)} style={{
-                  background:"#334155",border:"none",color:"#94a3b8",borderRadius:6,
-                  padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600,
-                }}>{expand===i?"Tutup ▲":"Baca ringkasan ▼"}</button>
+                <button onClick={()=>setExpand(expand===i?null:i)} style={{background:"#334155",border:"none",color:"#94a3b8",borderRadius:6,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600}}>
+                  {expand===i?"Tutup ▲":"Ringkasan ▼"}
+                </button>
               )}
               {n.url&&n.url!=="–"&&n.url!=="#"&&(
-                <a href={n.url} target="_blank" rel="noopener noreferrer" style={{
-                  background:"#1d4ed8",color:"white",borderRadius:6,
-                  padding:"4px 10px",fontSize:10,textDecoration:"none",fontWeight:600,
-                }}>Baca selengkapnya →</a>
+                <a href={n.url} target="_blank" rel="noopener noreferrer" style={{background:"#1d4ed8",color:"white",borderRadius:6,padding:"4px 10px",fontSize:10,textDecoration:"none",fontWeight:600}}>Baca →</a>
               )}
             </div>
           </div>
@@ -922,7 +1063,7 @@ function Calc() {
     <div>
       {isV&&net<=0&&(
         <div style={{background:"#2d0f0f",border:"1.5px solid #ef4444",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:11,color:"#ef4444",lineHeight:1.6}}>
-          ⚠️ Net harian <strong>negatif ({(net*100).toFixed(3)}%)</strong>. Modal akan terus berkurang. Sesuaikan parameter.
+          ⚠️ Net harian <strong>negatif ({(net*100).toFixed(3)}%)</strong>. Modal akan terus berkurang.
         </div>
       )}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -941,10 +1082,7 @@ function Calc() {
               style={{flex:1,padding:"9px 10px",borderRadius:8,border:"1.5px solid #334155",fontSize:13,fontFamily:"'DM Mono',monospace",background:"#1e293b",color:"white"}}/>
             <div style={{display:"flex",border:"1.5px solid #334155",borderRadius:8,overflow:"hidden"}}>
               {["bulan","tahun"].map(u=>(
-                <button key={u} onClick={()=>setUnit(u)} style={{
-                  padding:"0 10px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",
-                  background:unit===u?"#3b82f6":"#1e293b",color:unit===u?"white":"#64748b",
-                }}>{u}</button>
+                <button key={u} onClick={()=>setUnit(u)} style={{padding:"0 10px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",background:unit===u?"#3b82f6":"#1e293b",color:unit===u?"white":"#64748b"}}>{u}</button>
               ))}
             </div>
           </div>
@@ -994,6 +1132,121 @@ function TickerItem({label,symbol,dec}) {
   );
 }
 
+// ─── SAHAM TAB UTAMA ──────────────────────────────────────────────────────────
+function SahamTab({ onSahamClick }) {
+  const [katFilter,  setKatFilter]  = useState("Semua");
+  const [viewFilter, setViewFilter] = useState("Semua");
+  const [search,     setSearch]     = useState("");
+
+  // Gunakan uniqueSaham agar tidak ada duplikat
+  const allSaham = uniqueSaham;
+
+  // Get live chg dari pChgStore untuk sorting (pakai nilai simulasi)
+  const getChg = (kode) => pChgStore[kode] ?? (Math.random()-0.5)*5;
+
+  const buySaham  = allSaham.filter(s=>s.signal==="BUY").length;
+  const holdSaham = allSaham.filter(s=>s.signal==="HOLD").length;
+  const sellSaham = allSaham.filter(s=>s.signal==="SELL").length;
+  const syariahCount = allSaham.filter(s=>s.syariah).length;
+
+  let filtered = allSaham;
+
+  // Filter kategori
+  if (katFilter === "Syariah") filtered = filtered.filter(s => s.syariah);
+  else if (katFilter !== "Semua") filtered = filtered.filter(s => s.kategori === katFilter);
+
+  // Search
+  if (search.trim()) {
+    const q = search.trim().toUpperCase();
+    filtered = filtered.filter(s => s.kode.includes(q) || s.nama.toUpperCase().includes(q));
+  }
+
+  // View filter (sorting)
+  if (viewFilter === "Top Gainer") {
+    filtered = [...filtered].sort((a,b) => getChg(b.kode) - getChg(a.kode)).slice(0, 20);
+  } else if (viewFilter === "Top Loser") {
+    filtered = [...filtered].sort((a,b) => getChg(a.kode) - getChg(b.kode)).slice(0, 20);
+  } else if (viewFilter === "Paling Aktif") {
+    filtered = [...filtered].sort((a,b) => b.kekuatan - a.kekuatan).slice(0, 20);
+  }
+
+  return (
+    <div>
+      {/* Summary */}
+      <div style={{fontSize:14,fontWeight:700,color:"white",marginBottom:2}}>Saham IDX</div>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>
+        {allSaham.length} saham · {syariahCount} Syariah · Tap untuk detail
+      </div>
+
+      {/* Stats row */}
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        {[{l:"BUY",c:buySaham,color:"#10b981"},{l:"HOLD",c:holdSaham,color:"#f59e0b"},{l:"SELL",c:sellSaham,color:"#ef4444"},{l:"☪ SYARIAH",c:syariahCount,color:"#34d399"}].map(s=>(
+          <div key={s.l} style={{flex:1,background:"#1e293b",border:`1px solid #334155`,borderRadius:8,padding:"7px 0",textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:800,color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.c}</div>
+            <div style={{fontSize:8,color:s.color,fontWeight:700}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* View filter (Semua / Top Gainer / Top Loser / Paling Aktif) */}
+      <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto"}}>
+        {SAHAM_VIEWS.map(v=>(
+          <button key={v} onClick={()=>setViewFilter(v)} style={{
+            flexShrink:0,padding:"5px 11px",borderRadius:7,border:"none",cursor:"pointer",
+            fontSize:11,fontWeight:700,
+            background:viewFilter===v?"#7c3aed":"#1e293b",
+            color:viewFilter===v?"white":"#64748b",
+          }}>{v}</button>
+        ))}
+      </div>
+
+      {/* Kategori filter */}
+      <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto"}}>
+        {KATEGORI_SAHAM.map(k=>(
+          <button key={k} onClick={()=>setKatFilter(k)} style={{
+            flexShrink:0,padding:"4px 10px",borderRadius:6,border:"none",cursor:"pointer",
+            fontSize:10,fontWeight:700,
+            background:katFilter===k?"#3b82f6":"#1e293b",
+            color:katFilter===k?"white":"#64748b",
+          }}>{k}</button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{marginBottom:12}}>
+        <input
+          type="text"
+          placeholder="🔍 Cari kode atau nama saham..."
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #334155",
+            fontSize:12,background:"#1e293b",color:"white",boxSizing:"border-box",outline:"none"}}
+        />
+      </div>
+
+      {/* View label */}
+      {viewFilter !== "Semua" && (
+        <div style={{marginBottom:8,fontSize:11,color:"#7c3aed",fontWeight:600}}>
+          {viewFilter === "Top Gainer" && "📈 20 Saham Naik Terbesar"}
+          {viewFilter === "Top Loser" && "📉 20 Saham Turun Terbesar"}
+          {viewFilter === "Paling Aktif" && "⚡ 20 Saham Sinyal Terkuat"}
+        </div>
+      )}
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div style={{textAlign:"center",padding:"30px 0",color:"#64748b",fontSize:13}}>Tidak ada saham ditemukan</div>
+      ) : (
+        filtered.map(s=><SahamRow key={s.kode} item={s} onClick={()=>onSahamClick(s)}/>)
+      )}
+
+      <div style={{marginTop:10,background:"#172033",borderRadius:8,padding:"10px 12px",border:"1px solid #1e3a5f",fontSize:11,color:"#f59e0b",lineHeight:1.6}}>
+        ⚠️ Harga simulasi. Data real IDX membutuhkan API berbayar. Hanya untuk edukasi.
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ──────────────────────────────────────────────────────────────────────
 const TABS=[
   {id:"forex", icon:"💱",label:"Forex"},
@@ -1007,10 +1260,9 @@ export default function App() {
   const [clock,       setClock]       = useState(new Date());
   const [forexDetail, setForexDetail] = useState(null);
   const [sahamDetail, setSahamDetail] = useState(null);
-  const [katFilter,   setKatFilter]   = useState("Semua");
 
   const tgUser   = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const userName = tgUser?.first_name||"doel";
+  const userName = tgUser?.first_name||"Trader";
 
   useEffect(()=>{
     if(window.Telegram?.WebApp){ window.Telegram.WebApp.ready(); window.Telegram.WebApp.expand(); }
@@ -1020,11 +1272,6 @@ export default function App() {
     const id=setInterval(()=>setClock(new Date()),1000);
     return ()=>clearInterval(id);
   },[]);
-
-  const filteredSaham = katFilter==="Semua" ? SAHAM_LIST : SAHAM_LIST.filter(s=>s.kategori===katFilter);
-  const buySaham  = SAHAM_LIST.filter(s=>s.signal==="BUY").length;
-  const holdSaham = SAHAM_LIST.filter(s=>s.signal==="HOLD").length;
-  const sellSaham = SAHAM_LIST.filter(s=>s.signal==="SELL").length;
 
   return(
     <div style={{minHeight:"100vh",background:"#0f172a",fontFamily:"'Outfit',sans-serif",color:"#e2e8f0",paddingBottom:72}}>
@@ -1064,45 +1311,19 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:"white"}}>Sinyal Forex & Komoditas</div>
-                <div style={{fontSize:11,color:"#64748b"}}>Twelve Data API · Tap pair untuk detail + chart</div>
+                <div style={{fontSize:11,color:"#64748b"}}>TP & SL dihitung dari harga live</div>
               </div>
             </div>
             {FOREX_LIST.map(f=><ForexRow key={f.symbol} item={f} onClick={()=>setForexDetail(f)}/>)}
             <div style={{marginTop:12,background:"#172033",borderRadius:8,padding:"10px 12px",border:"1px solid #1e3a5f",fontSize:11,color:"#60a5fa",lineHeight:1.6}}>
-              ℹ️ Tap setiap pair untuk lihat chart candlestick, RSI, SMC, S&R, dan panel posisi.
-              Chart menggunakan data live jika tersedia, atau simulasi realistis sebagai fallback.
+              ℹ️ TP & SL dihitung otomatis dari harga pasar live. Tap pair untuk chart & panel posisi lengkap.
             </div>
           </div>
         )}
 
         {/* SAHAM TAB */}
         {tab==="saham"&&(
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:"white",marginBottom:2}}>Watchlist Saham IDX</div>
-            <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>Tap saham untuk detail indikator</div>
-            <div style={{display:"flex",gap:8,marginBottom:12}}>
-              {[{l:"BUY",c:buySaham,color:"#10b981"},{l:"HOLD",c:holdSaham,color:"#f59e0b"},{l:"SELL",c:sellSaham,color:"#ef4444"}].map(s=>(
-                <div key={s.l} style={{flex:1,background:"#1e293b",border:`1px solid #334155`,borderRadius:8,padding:"8px 0",textAlign:"center"}}>
-                  <div style={{fontSize:18,fontWeight:800,color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.c}</div>
-                  <div style={{fontSize:10,color:s.color,fontWeight:600}}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
-              {KATEGORI_SAHAM.map(k=>(
-                <button key={k} onClick={()=>setKatFilter(k)} style={{
-                  flexShrink:0,padding:"5px 12px",borderRadius:7,border:"none",cursor:"pointer",
-                  fontSize:11,fontWeight:700,
-                  background:katFilter===k?"#3b82f6":"#1e293b",
-                  color:katFilter===k?"white":"#64748b",
-                }}>{k}</button>
-              ))}
-            </div>
-            {filteredSaham.map(s=><SahamRow key={s.kode} item={s} onClick={()=>setSahamDetail(s)}/>)}
-            <div style={{marginTop:10,background:"#172033",borderRadius:8,padding:"10px 12px",border:"1px solid #1e3a5f",fontSize:11,color:"#f59e0b",lineHeight:1.6}}>
-              ⚠️ Harga saham IDX = simulasi + fallback. Data realtime IDX butuh API berbayar. Edukatif saja.
-            </div>
-          </div>
+          <SahamTab onSahamClick={(s)=>setSahamDetail(s)}/>
         )}
 
         {/* BERITA TAB */}
